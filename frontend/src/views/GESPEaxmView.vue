@@ -268,61 +268,65 @@
   <div v-if="showSubmitResult" class="submit-result-modal-overlay" @click="showSubmitResult = false">
     <div class="submit-result-modal-content" @click.stop>
       <div class="submit-result-header">
-        <h3>考试提交成功！</h3>
+        <h3>{{ testAttemptId ? '客观题已提交' : '考试提交成功！' }}</h3>
         <button @click="showSubmitResult = false" class="submit-result-close">×</button>
       </div>
       <div class="submit-result-body">
-        <div class="result-summary">
-          <div class="score-section">
-            <div class="score-circle">
-              <span class="score-number">{{ submitResult?.score || 0 }}</span>
-              <span class="score-label">分</span>
+        <template v-if="testAttemptId">
+          <p class="test-submit-hint">本次作答已记录，交卷时将按最后一次提交计分。请返回 Test 页面继续作答或交卷。</p>
+        </template>
+        <template v-else>
+          <div class="result-summary">
+            <div class="score-section">
+              <div class="score-circle">
+                <span class="score-number">{{ submitResult?.score || 0 }}</span>
+                <span class="score-label">分</span>
+              </div>
+              <div class="score-info">
+                <p class="exam-name">{{ examInfo.name }}</p>
+                <p class="attempt-info">第 {{ submitResult?.attempt_number || 1 }} 次尝试</p>
+              </div>
             </div>
-            <div class="score-info">
-              <p class="exam-name">{{ examInfo.name }}</p>
-              <p class="attempt-info">第 {{ submitResult?.attempt_number || 1 }} 次尝试</p>
+            
+            <div class="result-details">
+              <div class="detail-item">
+                <span class="detail-label">总题数:</span>
+                <span class="detail-value">{{ submitResult?.total_questions || 0 }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">正确题数:</span>
+                <span class="detail-value correct">{{ submitResult?.correct_count || 0 }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">错误题数:</span>
+                <span class="detail-value incorrect">{{ (submitResult?.total_questions || 0) - (submitResult?.correct_count || 0) }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">正确率:</span>
+                <span class="detail-value">{{ submitResult?.total_questions ? Math.round((submitResult.correct_count / submitResult.total_questions) * 100) : 0 }}%</span>
+              </div>
             </div>
           </div>
           
-          <div class="result-details">
-            <div class="detail-item">
-              <span class="detail-label">总题数:</span>
-              <span class="detail-value">{{ submitResult?.total_questions || 0 }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">正确题数:</span>
-              <span class="detail-value correct">{{ submitResult?.correct_count || 0 }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">错误题数:</span>
-              <span class="detail-value incorrect">{{ (submitResult?.total_questions || 0) - (submitResult?.correct_count || 0) }}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">正确率:</span>
-              <span class="detail-value">{{ submitResult?.total_questions ? Math.round((submitResult.correct_count / submitResult.total_questions) * 100) : 0 }}%</span>
-            </div>
+          <div class="result-message">
+            <p v-if="submitResult?.score >= 90" class="message excellent">
+              <Icon name="sparkles" :size="18" /> 优秀！你的表现非常出色！
+            </p>
+            <p v-else-if="submitResult?.score >= 80" class="message good">
+              <Icon name="thumbs-up" :size="18" /> 良好！继续保持！
+            </p>
+            <p v-else-if="submitResult?.score >= 60" class="message pass">
+              <Icon name="check-circle" :size="18" /> 及格！还有提升空间。
+            </p>
+            <p v-else class="message need-improvement">
+              <Icon name="trending-up" :size="18" /> 需要努力！建议多练习相关知识点。
+            </p>
           </div>
-        </div>
-        
-        <div class="result-message">
-          <p v-if="submitResult?.score >= 90" class="message excellent">
-            <Icon name="sparkles" :size="18" /> 优秀！你的表现非常出色！
-          </p>
-          <p v-else-if="submitResult?.score >= 80" class="message good">
-            <Icon name="thumbs-up" :size="18" /> 良好！继续保持！
-          </p>
-          <p v-else-if="submitResult?.score >= 60" class="message pass">
-            <Icon name="check-circle" :size="18" /> 及格！还有提升空间。
-          </p>
-          <p v-else class="message need-improvement">
-            <Icon name="trending-up" :size="18" /> 需要努力！建议多练习相关知识点。
-          </p>
-        </div>
+        </template>
       </div>
       <div class="submit-result-footer">
-        <button @click="goBackToLevelExams" class="btn btn-primary">
-          返回考试列表
-        </button>
+        <button v-if="testAttemptId" @click="showSubmitResult = false" class="btn btn-primary">关闭</button>
+        <button v-else @click="goBackToLevelExams" class="btn btn-primary">返回考试列表</button>
       </div>
     </div>
   </div>
@@ -577,7 +581,9 @@ export default defineComponent({
       fromPlan: false,
       fromTaskView: false,
       planId: null as string | null,
-      taskId: null as string | null
+      taskId: null as string | null,
+      // 聚合考试 attempt（从 /exam/:id?testAttemptId= 进入时使用 Test 提交接口）
+      testAttemptId: null as string | null
     };
   },
   computed: {
@@ -622,12 +628,14 @@ export default defineComponent({
     const fromTaskView = urlParams.get('from') === 'taskview';
     const planId = urlParams.get('planId') || null;
     const taskId = urlParams.get('taskId') || null;
+    const testAttemptId = urlParams.get('testAttemptId') || null;
     
     // 保存来源信息到组件数据中（空字符串转换为 null）
     this.fromPlan = fromPlan;
     this.planId = (planId && planId.trim() !== '') ? planId : null;
     this.taskId = (taskId && taskId.trim() !== '') ? taskId : null;
     this.fromTaskView = fromTaskView;
+    this.testAttemptId = (testAttemptId && testAttemptId.trim() !== '') ? testAttemptId : null;
     
     // 调试日志
     console.log('🔍 [GESPEaxmView] URL参数检查:', {
@@ -787,12 +795,15 @@ export default defineComponent({
         
         console.log('提交数据:', submitData);
         
-        // 判断是否使用任务内提交接口
+        // 判断使用哪种提交接口：Test 聚合考试 > 学习任务 > 普通
         let submitUrl = `${this.BASE_URL}/submit-exam`;
-        // 检查是否是任务内提交：fromTaskView 且 taskId 存在且不为空
-        const isTaskSubmission = this.fromTaskView && this.taskId && this.taskId.trim() !== '';
+        const isTestAttemptSubmission = this.testAttemptId && this.testAttemptId.trim() !== '';
+        const isTaskSubmission = !isTestAttemptSubmission && this.fromTaskView && this.taskId && this.taskId.trim() !== '';
         
-        if (isTaskSubmission) {
+        if (isTestAttemptSubmission) {
+          submitUrl = `${this.BASE_URL}/tests/attempts/${this.testAttemptId}/submit-exam`;
+          console.log('✅ [GESPEaxmView] 使用 Test 聚合考试提交接口:', submitUrl);
+        } else if (isTaskSubmission) {
           submitUrl = `${this.BASE_URL}/learning-tasks/${this.taskId}/submit-exam`;
           console.log('✅ [GESPEaxmView] 使用任务内提交接口:', submitUrl, {
             fromTaskView: this.fromTaskView,
@@ -801,10 +812,9 @@ export default defineComponent({
           });
         } else {
           console.log('⚠️ [GESPEaxmView] 使用普通提交接口', {
+            testAttemptId: this.testAttemptId,
             fromTaskView: this.fromTaskView,
-            taskId: this.taskId,
-            planId: this.planId,
-            reason: !this.fromTaskView ? '不是从任务页面进入' : !this.taskId ? '缺少taskId参数' : 'taskId为空'
+            taskId: this.taskId
           });
         }
         
@@ -925,17 +935,18 @@ export default defineComponent({
     // 返回对应等级的考试列表
     goBackToLevelExams() {
       this.showSubmitResult = false;
-      // 新增逻辑：
       const urlParams = new URLSearchParams(window.location.search);
+      const testId = urlParams.get('testId') || null;
       const from = urlParams.get('from');
       const planId = urlParams.get('planId') || null;
       const taskId = urlParams.get('taskId') || null;
-      
-      // 检查是否有有效的任务参数（不为空字符串）
+      if (this.testAttemptId && testId && testId.trim() !== '') {
+        this.router.push(`/tests/${testId}`);
+        return;
+      }
       const hasValidTaskParams = from === 'taskview' && 
                                   planId && planId.trim() !== '' && 
                                   taskId && taskId.trim() !== '';
-      
       if (hasValidTaskParams) {
         console.log('✅ [GESPEaxmView] 从任务页面进入，返回到任务页面', { planId, taskId });
         this.router.push(`/plan/${planId}/tasks/${taskId}?tab=exercises`);
@@ -960,15 +971,17 @@ export default defineComponent({
       this.cleanupBeforeUnload();
       localStorage.removeItem('currentExamInfo');
       const urlParams = new URLSearchParams(window.location.search);
+      const testId = urlParams.get('testId') || null;
       const from = urlParams.get('from');
       const planId = urlParams.get('planId') || null;
       const taskId = urlParams.get('taskId') || null;
-      
-      // 检查是否有有效的任务参数（不为空字符串）
+      if (this.testAttemptId && testId && testId.trim() !== '') {
+        this.router.push(`/tests/${testId}`);
+        return;
+      }
       const hasValidTaskParams = from === 'taskview' && 
                                   planId && planId.trim() !== '' && 
                                   taskId && taskId.trim() !== '';
-      
       if (hasValidTaskParams) {
         console.log('✅ [GESPEaxmView] 从任务页面退出，返回到任务页面', { planId, taskId });
         this.router.push(`/plan/${planId}/tasks/${taskId}?tab=exercises`);
@@ -978,7 +991,6 @@ export default defineComponent({
       } else {
         this.router.push(`/level-exams/${this.examInfo.level}`);
       }
-     
     },
     // 取消退出
     cancelExit() {
@@ -3449,11 +3461,12 @@ export default defineComponent({
 .submit-result-body {
   padding: 24px;
   flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
+}
+.test-submit-hint {
+  margin: 0;
+  color: #475569;
+  line-height: 1.6;
+  font-size: 0.95rem;
 }
 
 .result-summary {

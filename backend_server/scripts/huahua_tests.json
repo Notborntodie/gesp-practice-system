@@ -1,0 +1,82 @@
+[
+  {
+    "input": "5",
+    "output": "+---+\n|***|\n|***|\n|***|\n+---+",
+    "is_hidden": false,
+    "is_displayed": true,
+    "sort_order": 1,
+    "explanation": "题面样例：n=5 时 5×5 方阵，四角为 +，首末行为 -，首末列为 |，中间为 *。"
+  },
+  {
+    "input": "1",
+    "output": "+",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 2,
+    "explanation": null
+  },
+  {
+    "input": "2",
+    "output": "++\n++",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 3,
+    "explanation": null
+  },
+  {
+    "input": "3",
+    "output": "+-+\n|*|\n+-+",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 4,
+    "explanation": null
+  },
+  {
+    "input": "4",
+    "output": "+--+\n|**|\n|**|\n+--+",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 5,
+    "explanation": null
+  },
+  {
+    "input": "18",
+    "output": "+----------------+\n|****************|\n|****************|\n|****************|\n|****************|\n|****************|\n|****************|\n|****************|\n|****************|\n|****************|\n|****************|\n|****************|\n|****************|\n|****************|\n|****************|\n|****************|\n|****************|\n+----------------+",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 6,
+    "explanation": null
+  },
+  {
+    "input": "8",
+    "output": "+------+\n|******|\n|******|\n|******|\n|******|\n|******|\n|******|\n+------+",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 7,
+    "explanation": null
+  },
+  {
+    "input": "15",
+    "output": "+-------------+\n|*************|\n|*************|\n|*************|\n|*************|\n|*************|\n|*************|\n|*************|\n|*************|\n|*************|\n|*************|\n|*************|\n|*************|\n|*************|\n+-------------+",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 8,
+    "explanation": null
+  },
+  {
+    "input": "11",
+    "output": "+---------+\n|*********|\n|*********|\n|*********|\n|*********|\n|*********|\n|*********|\n|*********|\n|*********|\n|*********|\n+---------+",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 9,
+    "explanation": null
+  },
+  {
+    "input": "7",
+    "output": "+-----+\n|*****|\n|*****|\n|*****|\n|*****|\n|*****|\n+-----+",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 10,
+    "explanation": null
+  }
+]

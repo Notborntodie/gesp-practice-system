@@ -123,7 +123,7 @@ async function fetchExams() {
   loading.value = true
   try {
     console.log('📡 [ExamSelector] 开始获取试卷列表...')
-    const response = await axios.get(`${BASE_URL}/exams`)
+    const response = await axios.get(`${BASE_URL}/exams`, { params: { include_all: 1 } })
     
     console.log('📡 [ExamSelector] API响应:', response.data)
     

@@ -31,16 +31,6 @@
               {{ item.label }}
               <Icon v-if="(item as any).comingSoon" name="rocket" :size="14" class="coming-soon-icon" />
             </button>
-            <!-- GESP编程旁边的动画演示按钮 -->
-            <button 
-              v-if="item.key === 'smartoj'"
-              @click.stop="goToAnimationDemo"
-              :class="['animation-demo-btn', { active: isAnimationDemoPage }]"
-              title="动画演示"
-            >
-              <Icon name="play-circle" :size="16" />
-              <span class="animation-demo-text">动画演示</span>
-            </button>
           </div>
         </nav>
       </div>
@@ -265,6 +255,8 @@ const exitOJ = () => {
     window.dispatchEvent(new CustomEvent('exitOJRequest'))
   } else if (from === 'taskview' && planId && taskId) {
     router.push(`/plan/${planId}/tasks/${taskId}?tab=programming`);
+  } else if (from === 'plan-submissions') {
+    router.push('/plan/submissions');
   } else if (from) {
     router.push('/plan');
   } else {
@@ -274,8 +266,19 @@ const exitOJ = () => {
 
 // 退出考试页面
 const exitExam = () => {
-  // 触发考试页面中的退出确认弹窗（包括 GESPEaxmView 和 PlanExamView）
-  // 通过 window 事件来触发
+  const currentPath = route.path
+  const urlParams = new URLSearchParams(window.location.search)
+  const testAttemptId = urlParams.get('testAttemptId')
+  const testId = urlParams.get('testId')
+
+  // 从 Test 进入客观题考试页面（/exam/:id?testAttemptId=&testId=）
+  // 直接按 testId 返回对应 Test，不再弹确认框
+  if (currentPath.startsWith('/exam/') && testAttemptId && testId && testId.trim() !== '') {
+    router.push(`/tests/${testId}`)
+    return
+  }
+
+  // 其他考试页面仍然交给各自视图的退出确认弹窗处理
   window.dispatchEvent(new CustomEvent('exitExamRequest'))
 }
 
@@ -289,22 +292,14 @@ const logout = () => {
   router.push('/login')
 }
 
-// 检查是否为动画演示页面
-const isAnimationDemoPage = computed(() => {
-  return route.path === '/animation-demo'
-})
-
 // 检查当前是否在管理页面并设置活动菜单
 const checkAdminView = () => {
   isAdminView.value = route.path === '/select'
   
   // 根据当前路由设置活动菜单
-  // 注意：动画演示页面不激活任何主菜单项
-  if (route.path === '/animation-demo') {
-    activeMainMenu.value = ''
-  } else if (route.path === '/') {
+  if (route.path === '/') {
     activeMainMenu.value = 'home'
-  } else if (route.path === '/plan') {
+  } else if (route.path === '/plan' || route.path === '/plan/submissions' || route.path === '/plan/ranking') {
     activeMainMenu.value = 'plan'
   } else if (route.path === '/select' || route.path.startsWith('/level-exams/')) {
     activeMainMenu.value = 'gesp'
@@ -362,11 +357,6 @@ const goToAdmin = () => {
 const goToTeacher = () => {
   closeDropdown()
   router.push('/teacher')
-}
-
-// 跳转到动画演示页面
-const goToAnimationDemo = () => {
-  router.push('/animation-demo')
 }
 
 // 处理主菜单点击
@@ -652,59 +642,6 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
 }
-
-/* 动画演示按钮样式 */
-.animation-demo-btn {
-  background: transparent;
-  border: none;
-  color: #374151;
-  padding: 12px 20px;
-  border-radius: 12px;
-  font-size: 1.2rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  position: relative;
-  letter-spacing: 0.5px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.animation-demo-btn:hover {
-  background: rgba(30, 144, 255, 0.1);
-  color: #1e90ff;
-}
-
-.animation-demo-btn.active {
-  background: rgba(30, 144, 255, 0.2);
-  color: #1e90ff;
-  font-weight: 900;
-  border: 3px solid rgba(30, 144, 255, 0.3);
-}
-
-.animation-demo-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 30px;
-  height: 4px;
-  background: #1e90ff;
-  border-radius: 2px;
-}
-
-.animation-demo-btn:active {
-  transform: translateY(0);
-}
-
-.animation-demo-text {
-  font-weight: 700;
-  letter-spacing: 0.5px;
-}
-
-
 
 .nav-right {
   display: flex;
@@ -1076,11 +1013,6 @@ onUnmounted(() => {
   }
   
   .nav-menu-item {
-    padding: 8px 12px;
-    font-size: 1rem;
-  }
-
-  .animation-demo-btn {
     padding: 8px 12px;
     font-size: 1rem;
   }

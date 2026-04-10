@@ -30,7 +30,7 @@ async function initLearningPlanDatabase() {
         id INT PRIMARY KEY AUTO_INCREMENT,
         name VARCHAR(255) NOT NULL COMMENT '计划名称',
         description TEXT COMMENT '计划描述',
-        level INT NOT NULL COMMENT 'GESP级别(1-4)',
+        level INT NOT NULL COMMENT 'GESP级别(1-8)',
         start_time DATETIME NOT NULL COMMENT '开始时间',
         end_time DATETIME NOT NULL COMMENT '结束时间',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

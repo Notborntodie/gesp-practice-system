@@ -180,8 +180,8 @@ const isTeacher = computed(() => {
     }
     
     const userInfo = JSON.parse(userInfoStr)
-    return userInfo.role_names?.includes('teacher') || 
-           userInfo.roles?.some((role: any) => role.name === 'teacher')
+    const roleNames: string[] = userInfo.role_names || userInfo.roles?.map((r: any) => r.name) || []
+    return roleNames.includes('teacher') || roleNames.includes('admin') || roleNames.includes('super_admin')
   } catch (error) {
     console.error('获取用户信息失败:', error)
     return false
@@ -236,11 +236,15 @@ const examTypes = [
 async function fetchExams() {
   loading.value = true
   try {
-    // 如果是全部等级（level=0），不传level参数
-    const url = level.value === 0 
-      ? `${BASE_URL}/exams` 
-      : `${BASE_URL}/exams?level=${level.value}`
-    const response = await axios.get(url)
+    const params: any = {}
+    if (level.value !== 0) {
+      params.level = level.value
+    }
+    // 老师 / 管理员始终能看到全部试卷
+    if (isTeacher.value) {
+      params.include_all = 1
+    }
+    const response = await axios.get(`${BASE_URL}/exams`, { params })
     exams.value = response.data
     // 初始化过滤后的考试列表
     filterExams()
@@ -293,7 +297,6 @@ function selectExam(exam: any) {
 // 等级文本
 function getLevelText(level: number) {
   if (level === 0) return '全部等级'
-  if (level === 6) return 'CSP-J'
   return `GESP ${level}级`
 }
 

@@ -17,12 +17,12 @@ import OJSubmissionsView from '../views/OJSubmissionsView.vue'
 import TeacherOJSubmissionsView from '../views/TeacherOJSubmissionsView.vue'
 import ProfileView from '../views/ProfileView.vue'
 import PlanView from '../views/PlanView.vue'
+import TestDetailView from '../views/TestDetailView.vue'
 import TaskListView from '../views/TaskListView.vue'
 import TaskView from '../views/TaskView.vue'
 import homeView from '../views/homeView.vue'
 import FeynmanSummaryView from '../views/FeynmanSummaryView.vue'
 import StudentPlanProgressView from '../views/StudentPlanProgressView.vue'
-import AnimationDemoView from '../views/AnimationDemoView.vue'
 import AnimationView from '../views/AnimationView.vue'
 import TopWrongQuestionsView from '../views/TopWrongQuestionsView.vue'
 
@@ -32,6 +32,12 @@ const routes = [
   { path: '/', redirect: '/plan' },
   { path: '/home', component: homeView },
   { path: '/plan', component: PlanView },
+  { path: '/plan/submissions', component: PlanView },
+  { path: '/plan/ranking', component: PlanView },
+  { path: '/plan/tests', component: PlanView },
+  { path: '/tests/:testId', component: TestDetailView },
+  { path: '/public-tests/:token', component: () => import('../views/PublicTestResultView.vue') },
+  { path: '/public-plans/:token', component: () => import('../views/PublicPlanProgressView.vue') },
   { path: '/plan/:planId/tasks', component: TaskListView },
   { path: '/plan/:planId/tasks/:taskId', component: TaskView },
   { path: '/select', redirect: '/level-exams/0' },
@@ -55,7 +61,6 @@ const routes = [
   { path: '/teacher', component: TeacherView },
   { path: '/teacher/:teacherId/student/:studentId/plan-progress', component: StudentPlanProgressView },
   { path: '/feynman-summary', component: FeynmanSummaryView },
-  { path: '/animation-demo', component: AnimationDemoView },
   { path: '/animation/:id', component: AnimationView },
   { path: '/top-wrong-questions', redirect: '/top-wrong-questions/1' },
   { path: '/top-wrong-questions/:level', component: TopWrongQuestionsView }
@@ -72,8 +77,8 @@ router.beforeEach((to, from, next) => {
   // 允许未登录访问的页面
   const publicPages = ['/login', '/register', '/home', '/top-wrong-questions']
   // 动画页面路径（支持动态ID）也允许公开访问
-  // 易错题页面路径（支持动态级别）也允许公开访问
-  const isPublic = publicPages.includes(to.path) || to.path.startsWith('/animation/') || to.path.startsWith('/top-wrong-questions/')
+  // 易错题页面路径（支持动态级别）也允许公开访问；公开查分页无需登录
+  const isPublic = publicPages.includes(to.path) || to.path.startsWith('/animation/') || to.path.startsWith('/top-wrong-questions/') || to.path.startsWith('/public-tests/') || to.path.startsWith('/public-plans/')
 
   if (!isLoggedIn && !isPublic) {
     // 未登录且访问受保护页面，跳转到登录

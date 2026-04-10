@@ -349,23 +349,33 @@ async function runWithIsolate(binaryPath, input, options = {}) {
     
     // 检查运行状态
     if (metaInfo.status === 'TO') {
-      throw new Error('Time Limit Exceeded (运行超时)');
+      const err = new Error('Time Limit Exceeded (运行超时)');
+      err.duration = duration;
+      throw err;
     }
     if (metaInfo.status === 'RE') {
-      throw new Error('Runtime Error (运行时错误)');
+      const err = new Error('Runtime Error (运行时错误)');
+      err.duration = duration;
+      throw err;
     }
     if (metaInfo.status === 'SG') {
-      throw new Error('Runtime Error (程序崩溃)');
+      const err = new Error('Runtime Error (程序崩溃)');
+      err.duration = duration;
+      throw err;
     }
     if (metaInfo.status === 'XX') {
-      throw new Error('Internal Error (内部错误)');
+      const err = new Error('Internal Error (内部错误)');
+      err.duration = duration;
+      throw err;
     }
     
     // 检查内存超限
     if (metaInfo['cg-mem']) {
       const usedMemory = parseInt(metaInfo['cg-mem']);
       if (usedMemory > memoryLimit) {
-        throw new Error('Memory Limit Exceeded (内存超限)');
+        const err = new Error('Memory Limit Exceeded (内存超限)');
+        err.duration = duration;
+        throw err;
       }
     }
     
@@ -483,7 +493,8 @@ async function judgeCode(code, samples, options = {}) {
           expected: sample.is_hidden ? '(隐藏)' : sample.output,
           actual: '',
           error: error.message,
-          duration: 0,
+          // 让前端能显示单个测试点的真实耗时（例如 TLE）
+          duration: error.duration ?? 0,
           is_hidden: sample.is_hidden
         };
       }

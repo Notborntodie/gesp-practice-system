@@ -85,6 +85,7 @@ import UserManagement from '@/components/admin/UserManagement.vue'
 import OJManagement from '@/components/admin/OJManagement.vue'
 import LeaningPlanManagement from '@/components/admin/LeaningPlanManagement.vue'
 import AdminPlanProgressSection from '@/components/admin/AdminPlanProgressSection.vue'
+import AdminTestManagementSection from '@/components/admin/AdminTestManagementSection.vue'
 
 // 侧边栏菜单项
 const menuItems = [
@@ -95,6 +96,7 @@ const menuItems = [
   { key: 'oj-management', label: 'OJ 题目管理' },
   { key: 'plan-management', label: '学习计划管理' },
   { key: 'plan-progress', label: '计划完成' },
+  { key: 'test-management', label: '测试管理' },
   { key: 'user-management', label: '用户管理' }
 ]
 
@@ -187,6 +189,7 @@ const sectionComponentMap: Record<string, any> = {
   'oj-management': OJManagement,
   'plan-management': LeaningPlanManagement,
   'plan-progress': AdminPlanProgressSection,
+  'test-management': AdminTestManagementSection,
   'user-management': UserManagement,
 }
 
@@ -678,6 +681,9 @@ const activeComponent = computed(() => sectionComponentMap[currentActiveSection.
 .level-3 { background: #e0f2fe; color: #1e40af; }
 .level-4 { background: #f3e8ff; color: #6b21a8; }
 .level-5 { background: #fdf6b2; color: #92400e; }
+.level-6 { background: #fef3c7; color: #d97706; }
+.level-7 { background: #dbeafe; color: #1d4ed8; }
+.level-8 { background: #fce7f3; color: #be185d; }
 
 .question-actions {
   display: flex;

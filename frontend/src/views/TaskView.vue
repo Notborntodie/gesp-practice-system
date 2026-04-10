@@ -716,7 +716,7 @@
       <div v-if="showAccessDeniedDialog" class="access-denied-modal" @click="closeAccessDeniedDialog">
         <div class="modal-content" @click.stop>
           <div class="modal-header">
-            <h3>{{ accessDeniedReasonForSubmissions === 'expired' ? '提交时间已过期' : '暂无提交记录' }}</h3>
+            <h3>暂无提交记录</h3>
             <button @click="closeAccessDeniedDialog" class="close-btn">×</button>
           </div>
           <div class="modal-body">
@@ -724,7 +724,7 @@
               <div class="access-denied-icon">
                 <Icon name="lock" :size="64" />
               </div>
-              <p>{{ accessDeniedReasonForSubmissions === 'expired' ? '只有近24小时内的提交才能查看提交记录、讲解视频和解析，请重新提交后再查看。' : '您还没有提交过该题目，请先提交后再查看提交记录、讲解视频或解析。' }}</p>
+              <p>您还没有提交过该题目，请先提交后再查看提交记录、讲解视频或解析。</p>
             </div>
           </div>
           <div class="modal-footer">
@@ -1104,29 +1104,7 @@ const viewExamSubmissions = async (exam: any) => {
       return
     }
     
-    // 按提交时间排序，获取最近一次提交
-    submissions.sort((a: any, b: any) => {
-      const timeA = new Date(a.submit_time).getTime()
-      const timeB = new Date(b.submit_time).getTime()
-      return timeB - timeA
-    })
-    
-    const latestSubmission = submissions[0]
-    
-    // 检查最近一次提交是否在24小时内
-    const submissionTime = new Date(latestSubmission.submit_time).getTime()
-    const now = new Date().getTime()
-    const oneDayInMs = 24 * 60 * 60 * 1000 // 24小时
-    const timeDiff = now - submissionTime
-    
-    if (timeDiff > oneDayInMs) {
-      accessDeniedReasonForSubmissions.value = 'expired'
-      showAccessDeniedDialog.value = true
-      return
-    }
-    
-    // 有近1天的提交，允许进入
-    // 构建URL参数，只传递有效的值
+    // 开放全部提交，无24小时限制，直接进入提交记录页
     const params = new URLSearchParams()
     params.set('from', 'taskview')
     if (selectedPlanId.value) {
@@ -1169,29 +1147,7 @@ const viewOJSubmissions = async (problem: any) => {
       return
     }
     
-    // 按提交时间排序，获取最近一次提交
-    submissions.sort((a: any, b: any) => {
-      const timeA = new Date(a.submit_time).getTime()
-      const timeB = new Date(b.submit_time).getTime()
-      return timeB - timeA
-    })
-    
-    const latestSubmission = submissions[0]
-    
-    // 检查最近一次提交是否在24小时内
-    const submissionTime = new Date(latestSubmission.submit_time).getTime()
-    const now = new Date().getTime()
-    const oneDayInMs = 24 * 60 * 60 * 1000 // 24小时
-    const timeDiff = now - submissionTime
-    
-    if (timeDiff > oneDayInMs) {
-      accessDeniedReasonForSubmissions.value = 'expired'
-      showAccessDeniedDialog.value = true
-      return
-    }
-    
-    // 有近1天的提交，允许进入
-    // 构建URL参数，只传递有效的值
+    // 开放全部提交，无24小时限制，直接进入提交记录页
     const params = new URLSearchParams()
     params.set('from', 'taskview')
     if (selectedPlanId.value) {
@@ -1234,28 +1190,7 @@ const openVideoDialog = async (problem: any) => {
       return
     }
     
-    // 按提交时间排序，获取最近一次提交
-    submissions.sort((a: any, b: any) => {
-      const timeA = new Date(a.submit_time).getTime()
-      const timeB = new Date(b.submit_time).getTime()
-      return timeB - timeA
-    })
-    
-    const latestSubmission = submissions[0]
-    
-    // 检查最近一次提交是否在24小时内
-    const submissionTime = new Date(latestSubmission.submit_time).getTime()
-    const now = new Date().getTime()
-    const oneDayInMs = 24 * 60 * 60 * 1000 // 24小时
-    const timeDiff = now - submissionTime
-    
-    if (timeDiff > oneDayInMs) {
-      accessDeniedReasonForSubmissions.value = 'expired'
-      showAccessDeniedDialog.value = true
-      return
-    }
-    
-    // 有近1天的提交，允许查看视频
+    // 开放全部提交，无24小时限制，有提交即可查看视频
     const videoResponse = await fetch(`${BASE_URL}/oj/problems/${problem.id}/video`)
     const videoResult = await videoResponse.json()
     if (videoResult.success && videoResult.data.video_url) {
@@ -1318,7 +1253,7 @@ const viewLatestSubmissionExplanation = async () => {
       return
     }
     
-    // 按提交时间排序，获取最近一次提交
+    // 按提交时间排序，取最近一次；开放全部提交，无24小时限制
     allSubmissions.sort((a: any, b: any) => {
       const timeA = new Date(a.submit_time).getTime()
       const timeB = new Date(b.submit_time).getTime()
@@ -1326,21 +1261,6 @@ const viewLatestSubmissionExplanation = async () => {
     })
     
     const latestSubmission = allSubmissions[0]
-    
-    // 检查最近一次提交是否在24小时内
-    const submissionTime = new Date(latestSubmission.submit_time).getTime()
-    const now = new Date().getTime()
-    const oneDayInMs = 24 * 60 * 60 * 1000 // 24小时的毫秒数
-    const timeDiff = now - submissionTime
-    
-    if (timeDiff > oneDayInMs) {
-      // 提交时间超过24小时，不允许查看解析
-      accessDeniedReasonForSubmissions.value = 'expired'
-      showAccessDeniedDialog.value = true
-      loadingExplanation.value = false
-      return
-    }
-    
     selectedSubmission.value = latestSubmission
     
     // 获取提交详情
@@ -1408,7 +1328,6 @@ const goToExamSubmissions = (examId: number) => {
 
 // 等级文本
 const getLevelText = (level: number) => {
-  if (level === 6) return 'CSP-J'
   return `GESP ${level}级`
 }
 

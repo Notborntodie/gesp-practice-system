@@ -40,6 +40,7 @@
             <th>通过率</th>
             <th>时间限制</th>
             <th>内存限制</th>
+            <th class="col-bank-visible">题库可见</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -60,6 +61,18 @@
             </td>
             <td>{{ problem.time_limit }}ms</td>
             <td>{{ problem.memory_limit }}MB</td>
+            <td class="bank-visible-cell">
+              <button
+                type="button"
+                class="bank-visible-toggle"
+                :class="{ on: isBankVisible(problem), loading: togglingId === problem.id }"
+                :disabled="togglingId === problem.id"
+                :title="isBankVisible(problem) ? '对学生可见（SmartOJ / 等级题库）' : '对学生不可见（仅计划与测试）'"
+                @click="toggleBankVisible(problem)"
+              >
+                <span class="toggle-slider"></span>
+              </button>
+            </td>
             <td>
               <div class="action-buttons">
                 <button @click="viewProblem(problem.id)" class="btn-action btn-view" title="查看详情">
@@ -117,6 +130,26 @@ const loading = ref(false)
 const showUploadDialog = ref(false)
 const showEditDialog = ref(false)
 const editingProblem = ref<any>(null)
+const togglingId = ref<number | null>(null)
+
+function isBankVisible(problem: any): boolean {
+  return problem.bank_visible !== undefined ? !!problem.bank_visible : true
+}
+
+async function toggleBankVisible(problem: any) {
+  if (togglingId.value === problem.id) return
+  const next = !isBankVisible(problem)
+  togglingId.value = problem.id
+  try {
+    await axios.put(`${BASE_URL}/oj/problems/${problem.id}`, { bank_visible: next })
+    problem.bank_visible = next ? 1 : 0
+  } catch (e: any) {
+    console.error('更新题库可见失败:', e)
+    alert('更新失败: ' + (e.response?.data?.error || e.message))
+  } finally {
+    togglingId.value = null
+  }
+}
 
 // 获取题目列表
 async function fetchProblems() {
@@ -130,7 +163,7 @@ async function fetchProblems() {
     if (selectedLevel.value) {
       params.level = selectedLevel.value
     }
-    
+    params.include_all = 1 // 管理端需看到全部题目（含题库不可见）
     const response = await axios.get(`${BASE_URL}/oj/problems`, { params })
     
     if (response.data.success) {
@@ -336,6 +369,62 @@ onMounted(() => {
 .pass-rate {
   font-weight: 600;
   color: #10b981;
+}
+
+.col-bank-visible {
+  width: 90px;
+  text-align: center;
+}
+
+.bank-visible-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.bank-visible-toggle {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 11px;
+  background: #cbd5e1;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.bank-visible-toggle:hover:not(:disabled) {
+  background: #94a3b8;
+}
+
+.bank-visible-toggle.on {
+  background: linear-gradient(135deg, #1e90ff 0%, #38bdf8 100%);
+}
+
+.bank-visible-toggle.on:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.bank-visible-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.bank-visible-toggle .toggle-slider {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s;
+}
+
+.bank-visible-toggle.on .toggle-slider {
+  transform: translateX(18px);
 }
 
 .action-buttons {

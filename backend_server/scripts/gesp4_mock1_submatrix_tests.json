@@ -1,0 +1,82 @@
+[
+  {
+    "input": "3 4 2\n1 2 3 4\n5 6 7 8\n9 10 11 12",
+    "output": "38",
+    "is_hidden": false,
+    "is_displayed": true,
+    "sort_order": 1,
+    "explanation": "样例：2×2 子矩阵和最大为 7+8+11+12=38。"
+  },
+  {
+    "input": "2 3 1\n-1 5 0\n2 -3 4",
+    "output": "5",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 2,
+    "explanation": null
+  },
+  {
+    "input": "2 2 2\n10 20\n30 40",
+    "output": "100",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 3,
+    "explanation": null
+  },
+  {
+    "input": "4 5 2\n-40 -29 -18 -7 4\n-33 -22 -11 0 11\n-26 -15 -4 7 18\n-19 -8 3 14 25",
+    "output": "64",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 4,
+    "explanation": null
+  },
+  {
+    "input": "5 6 3\n18 29 40 51 62 73\n25 36 47 58 69 80\n32 43 54 65 76 87\n39 50 61 72 83 94\n46 57 68 79 90 -100",
+    "output": "684",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 5,
+    "explanation": null
+  },
+  {
+    "input": "6 6 2\n-82 -71 -60 -49 -38 -27\n-75 -64 -53 -42 -31 -20\n-68 -57 -46 -35 -24 -13\n-61 -50 -39 -28 -17 -6\n-54 -43 -32 -21 -10 1\n-47 -36 -25 -14 -3 8",
+    "output": "-4",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 6,
+    "explanation": null
+  },
+  {
+    "input": "8 7 4\n-65 -54 -43 -32 -21 -10 1\n-58 -47 -36 -25 -14 -3 8\n-51 -40 -29 -18 -7 4 15\n-44 -33 -22 -11 0 11 22\n-37 -26 -15 -4 7 18 29\n-30 -19 -8 3 14 25 36\n-23 -12 -1 10 21 32 43\n-16 -5 6 17 28 39 50",
+    "output": "368",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 7,
+    "explanation": null
+  },
+  {
+    "input": "10 10 5\n17 28 39 50 61 72 83 94 -96 -85\n24 35 46 57 68 79 90 -100 -89 -78\n31 42 53 64 75 86 97 -93 -82 -71\n38 49 60 71 82 93 -97 -86 -75 -64\n45 56 67 78 89 100 -90 -79 -68 -57\n52 63 74 85 96 -94 -83 -72 -61 -50\n59 70 81 92 -98 -87 -76 -65 -54 -43\n66 77 88 99 -91 -80 -69 -58 -47 -36\n73 84 95 -95 -84 -73 -62 -51 -40 -29\n80 91 -99 -88 -77 -66 -55 -44 -33 -22",
+    "output": "1600",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 8,
+    "explanation": null
+  },
+  {
+    "input": "4 8 2\n-49 -38 -27 -16 -5 6 17 28\n-42 -31 -20 -9 2 13 24 35\n-35 -24 -13 -2 9 20 31 42\n-28 -17 -6 5 16 27 38 49",
+    "output": "160",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 9,
+    "explanation": null
+  },
+  {
+    "input": "7 9 3\n41 52 63 74 85 96 -94 -83 -72\n48 59 70 81 92 -98 -87 -76 -65\n55 66 77 88 99 -91 -80 -69 -58\n62 73 84 95 -95 -84 -73 -62 -51\n69 80 91 -99 -88 -77 -66 -55 -44\n76 87 98 -92 -81 -70 -59 -48 -37\n83 94 -96 -85 -74 -63 -52 -41 -30",
+    "output": "729",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 10,
+    "explanation": null
+  }
+]

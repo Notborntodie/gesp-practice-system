@@ -61,6 +61,15 @@
           </div>
 
           <div class="form-group">
+            <label>题目解析（文字）：</label>
+            <textarea
+              v-model="editForm.analysis"
+              placeholder="写给学生看的文字解析，将出现在 Test 的「我的解析」中"
+              rows="4"
+            ></textarea>
+          </div>
+
+          <div class="form-group">
             <label>视频讲解链接：</label>
             <input v-model="editForm.video_url" placeholder="如：https://example.com/video.mp4" />
           </div>
@@ -79,6 +88,13 @@
               <label>发布日期：</label>
               <input v-model="editForm.publish_date" type="date" />
             </div>
+          </div>
+
+          <div class="form-group checkbox-group">
+            <label>
+              <input type="checkbox" v-model="editForm.bank_visible" />
+              题库可见（关闭后 level-exams 题库不显示，计划与测试仍可使用）
+            </label>
           </div>
 
           <!-- 测试样例 -->
@@ -280,11 +296,13 @@ function initFormData(problemData: any) {
     input_format: problemData.input_format || '',
     output_format: problemData.output_format || '',
     data_range: problemData.data_range || '',
+    analysis: problemData.analysis || '',
     video_url: problemData.video_url || '',
     time_limit: problemData.time_limit || 1000,
     memory_limit: problemData.memory_limit || 256,
     level: problemData.level?.toString() || '3',
     publish_date: problemData.publish_date ? new Date(problemData.publish_date).toISOString().split('T')[0] : '',
+    bank_visible: problemData.bank_visible !== undefined ? !!problemData.bank_visible : true,
     samples: samples
   }
 }
@@ -370,6 +388,9 @@ async function updateOJProblem() {
   if (editForm.value.data_range?.trim()) {
     updateData.data_range = editForm.value.data_range.trim()
   }
+  if (editForm.value.analysis?.trim()) {
+    updateData.analysis = editForm.value.analysis.trim()
+  }
   if (editForm.value.video_url?.trim()) {
     updateData.video_url = editForm.value.video_url.trim()
   }
@@ -385,7 +406,10 @@ async function updateOJProblem() {
   if (editForm.value.publish_date) {
     updateData.publish_date = editForm.value.publish_date
   }
-  
+  if (editForm.value.bank_visible !== undefined) {
+    updateData.bank_visible = !!editForm.value.bank_visible
+  }
+
   // 如果有测试样例，添加到更新数据中
   if (editForm.value.samples && editForm.value.samples.length > 0) {
     updateData.samples = editForm.value.samples

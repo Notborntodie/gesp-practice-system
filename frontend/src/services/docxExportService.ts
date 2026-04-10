@@ -678,7 +678,6 @@ class DocxExportService {
    * 获取等级文本
    */
   private getLevelText(level: number): string {
-    if (level === 6) return 'CSP-J'
     return `GESP ${level}级`
   }
 

@@ -25,12 +25,29 @@
             </div>
 
             <div class="form-group">
+              <label for="examCategory">考试分类 *</label>
+              <select
+                id="examCategory"
+                v-model="examForm.category"
+                class="form-select"
+                :class="{ 'error': errors.category }"
+              >
+                <option value="">请选择分类</option>
+                <option v-for="type in allQuestionTypes" :key="type.name" :value="type.name">
+                  {{ type.display_name || type.name }}
+                </option>
+              </select>
+              <span v-if="errors.category" class="error-message">{{ errors.category }}</span>
+            </div>
+
+            <div class="form-group">
               <label for="examLevel">考试等级 *</label>
-              <select 
+              <select
                 id="examLevel"
-                v-model="examForm.level" 
+                v-model="examForm.level"
                 class="form-select"
                 :class="{ 'error': errors.level }"
+                v-if="examForm.category === 'GESP'"
               >
                 <option value="">请选择考试等级</option>
                 <option value="1">GESP 1级</option>
@@ -38,7 +55,9 @@
                 <option value="3">GESP 3级</option>
                 <option value="4">GESP 4级</option>
                 <option value="5">GESP 5级</option>
-                <option value="6">CSP-J</option>
+                <option value="6">GESP 6级</option>
+                <option value="7">GESP 7级</option>
+                <option value="8">GESP 8级</option>
               </select>
               <span v-if="errors.level" class="error-message">{{ errors.level }}</span>
             </div>
@@ -68,6 +87,13 @@
                 class="form-textarea"
                 rows="3"
               ></textarea>
+            </div>
+
+            <div class="form-group full-width checkbox-group">
+              <label>
+                <input type="checkbox" v-model="examForm.bank_visible" />
+                题库可见（关闭后 level-exams 题库不显示，计划与测试仍可使用）
+              </label>
             </div>
           </div>
         </div>
@@ -153,9 +179,13 @@
 
 <script setup lang="ts">import { BASE_URL } from '@/config/api'
 
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import { useQuestionTypeStore } from '@/stores/questionTypeStore'
+
+const questionTypeStore = useQuestionTypeStore()
+const { allQuestionTypes, fetchQuestionTypes } = questionTypeStore
 
 const router = useRouter()
 
@@ -179,14 +209,17 @@ const emit = defineEmits<{
 // 表单数据
 const examForm = ref({
   name: '',
+  category: 'GESP',
   level: '',
   type: '',
-  description: ''
+  description: '',
+  bank_visible: true
 })
 
 // 错误信息
 const errors = ref({
   name: '',
+  category: '',
   level: '',
   type: ''
 })
@@ -199,9 +232,13 @@ watch(() => props.selectedQuestions, (newQuestions) => {
   // 可以在这里处理题目变化逻辑
 }, { deep: true })
 
+onMounted(() => {
+  fetchQuestionTypes()
+})
+
 // 验证表单
 function validateForm() {
-  errors.value = { name: '', level: '', type: '' }
+  errors.value = { name: '', category: '', level: '', type: '' }
   let isValid = true
 
   if (!examForm.value.name.trim()) {
@@ -209,8 +246,8 @@ function validateForm() {
     isValid = false
   }
 
-  if (!examForm.value.level) {
-    errors.value.level = '请选择考试等级'
+  if (examForm.value.category === 'GESP' && !examForm.value.level) {
+    errors.value.level = 'GESP 分类请选择考试等级'
     isValid = false
   }
 
@@ -224,8 +261,9 @@ function validateForm() {
 
 // 检查是否可以创建考试
 const canCreate = computed(() => {
-  return examForm.value.name.trim() && 
-         examForm.value.level && 
+  return examForm.value.name.trim() &&
+         examForm.value.category &&
+         (examForm.value.category !== 'GESP' || examForm.value.level) &&
          examForm.value.type &&
          props.selectedQuestions.length > 0 &&
          !creating.value
@@ -239,9 +277,11 @@ async function createExam() {
   try {
     const examData = {
       name: examForm.value.name.trim(),
-      level: parseInt(examForm.value.level),
+      category: examForm.value.category,
+      level: examForm.value.category === 'GESP' ? parseInt(examForm.value.level) : null,
       type: examForm.value.type,
       description: examForm.value.description.trim(),
+      bank_visible: !!examForm.value.bank_visible,
       question_ids: props.selectedQuestions.map((q, index) => ({
         id: q.id,
         question_number: index + 1
@@ -252,9 +292,11 @@ async function createExam() {
     
     // 重置表单
     examForm.value.name = ''
+    examForm.value.category = 'GESP'
     examForm.value.level = ''
     examForm.value.type = ''
     examForm.value.description = ''
+    examForm.value.bank_visible = true
     
     // 关闭弹窗
     closeDialog()
@@ -301,7 +343,6 @@ function getDifficultyText(d: string) {
 
 // 等级文本
 function getLevelText(level: number) {
-  if (level === 6) return 'CSP-J'
   return `GESP ${level}级`
 }
 </script>
@@ -566,6 +607,8 @@ function getLevelText(level: number) {
 .level-4 { background: #e3f2fd; color: #1e90ff; }
 .level-5 { background: #b3e5fc; color: #1e90ff; }
 .level-6 { background: #fef3c7; color: #d97706; }
+.level-7 { background: #dbeafe; color: #1d4ed8; }
+.level-8 { background: #fce7f3; color: #be185d; }
 
 .difficulty-badge {
   padding: 4px 8px;

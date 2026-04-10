@@ -41,7 +41,8 @@
             >
               <div class="nav-item-header">
                 <span class="nav-item-number">{{ index + 1 }}</span>
-                <span class="nav-item-level">{{ getLevelText(question.level || 1) }}</span>
+                <span class="nav-item-category">{{ getCategoryText(question.category || 'GESP') }}</span>
+                <span v-if="(question.category || 'GESP') === 'GESP'" class="nav-item-level">{{ getLevelText(question.level || 1) }}</span>
                 <span v-if="!question.options && question.id" class="loading-indicator">⏳</span>
               </div>
               <div class="nav-item-content">
@@ -119,6 +120,14 @@
                   <h5>基本信息</h5>
                   <div class="form-row">
                     <div class="form-group">
+                      <label>题目来源：</label>
+                      <select v-model="currentQuestion.category" @change="markAsEdited">
+                        <option v-for="t in questionTypeStore.allTypes.value" :key="t.name" :value="t.name">
+                          {{ t.display_name || t.name }}
+                        </option>
+                      </select>
+                    </div>
+                    <div class="form-group" v-if="currentQuestion.category === 'GESP'">
                       <label>等级：</label>
                       <select v-model="currentQuestion.level" required @change="markAsEdited">
                         <option value="1">GESP 1级</option>
@@ -126,7 +135,9 @@
                         <option value="3">GESP 3级</option>
                         <option value="4">GESP 4级</option>
                         <option value="5">GESP 5级</option>
-                        <option value="6">CSP-J</option>
+                        <option value="6">GESP 6级</option>
+                        <option value="7">GESP 7级</option>
+                        <option value="8">GESP 8级</option>
                       </select>
                     </div>
                     <div class="form-group">
@@ -400,6 +411,7 @@ function getImageUrl(url: string | undefined): string {
 import { ref, computed, onMounted, nextTick } from 'vue'
 import axios from 'axios'
 import SuccessMessageDialog from './SuccessMessageDialog.vue'
+import { useQuestionTypeStore } from '@/stores/questionTypeStore'
 
 interface Props {
   visible: boolean
@@ -413,6 +425,7 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+const questionTypeStore = useQuestionTypeStore()
 
 // 计算属性
 const currentQuestion = computed(() => {
@@ -502,6 +515,7 @@ function initializeQuestions() {
           text: opt.text || opt.option_text || ''
         }
       }) : [],
+      category: q.category || 'GESP',
       level: q.level || 1,
       difficulty: q.difficulty || 'medium',
       question_type: q.question_type || 'text',
@@ -651,7 +665,8 @@ async function saveAllQuestions() {
         question_code: question.question_code || '',
         correct_answer: question.correct_answer,
         explanation: question.explanation || '',
-        level: question.level,
+        category: question.category || 'GESP',
+        level: question.category === 'GESP' ? question.level : null,
         difficulty: question.difficulty,
         image_url: question.image_url || '',
         question_date: question.question_date || '',
@@ -758,8 +773,13 @@ async function autoGenerateExplanation(questionIndex: number) {
 
 // 等级文本
 function getLevelText(level: number) {
-  if (level === 6) return 'CSP-J'
   return `GESP ${level}级`
+}
+
+// 分类文本 — 从 questionTypeStore 动态获取
+function getCategoryText(category: string) {
+  const type = questionTypeStore.allTypes.value.find(t => t.name === category)
+  return type?.display_name || category
 }
 
 // 切换级别折叠状态
@@ -832,9 +852,6 @@ async function uploadImage(file: File) {
     
     
     const response = await axios.post(`${BASE_URL}/upload-image`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      },
       onUploadProgress: (progressEvent) => {
         if (progressEvent.total) {
           uploadProgress.value = Math.round((progressEvent.loaded * 100) / progressEvent.total)
@@ -922,6 +939,7 @@ function watchProps() {
 }
 
 onMounted(() => {
+  questionTypeStore.fetchQuestionTypes()
   fetchKnowledgePoints()
   watchProps()
 })
@@ -1165,6 +1183,15 @@ watch(() => props.selectedQuestions, () => {
 .nav-item-level {
   background: #e0f7fa;
   color: #1e90ff;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.nav-item-category {
+  background: #f1f5f9;
+  color: #64748b;
   padding: 4px 8px;
   border-radius: 6px;
   font-size: 12px;

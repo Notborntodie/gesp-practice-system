@@ -18,7 +18,7 @@
       <div v-else-if="submissions.length === 0 && !accessDenied" class="empty-state">
         <div class="empty-icon"><Icon name="file-text" :size="64" /></div>
         <h3>暂无提交记录</h3>
-        <p>您还没有提交过这道题目</p>
+        <p>{{ isAdminViewer ? '当前筛选下暂无任何用户提交' : '您还没有提交过这道题目' }}</p>
       </div>
       
       <div v-else-if="!accessDenied" class="submissions-by-month">
@@ -32,6 +32,7 @@
               <thead>
                 <tr>
                   <th>提交ID</th>
+                  <th v-if="isAdminViewer">提交者</th>
                   <th v-if="!problemId">题目</th>
                   <th>提交时间</th>
                   <th>语言</th>
@@ -47,6 +48,9 @@
                   class="submission-row"
                 >
                   <td>#{{ submission.id }}</td>
+                  <td v-if="isAdminViewer" class="user-cell">
+                    {{ formatSubmitter(submission) }}
+                  </td>
                   <td v-if="!problemId" class="problem-title-cell">
                     <span class="problem-title" @click.stop="goToProblemFromSubmission(submission.problem_id)">
                       {{ submission.problem_title || `题目 #${submission.problem_id}` }}
@@ -68,14 +72,12 @@
                   </td>
                   <td>
                     <div class="action-buttons">
-                      <button 
-                        v-if="submission.verdict !== 'Accepted'" 
-                        class="btn-action btn-view" 
+                      <button
+                        class="btn-action btn-view"
                         @click="viewSubmissionDetail(submission)"
                       >
                         <Icon name="eye" :size="16" /> 查看详情
                       </button>
-                      <span v-else class="no-detail-text">-</span>
                     </div>
                   </td>
                 </tr>
@@ -118,6 +120,12 @@
                 <div class="summary-info">
                   <h4>{{ problemInfo.title || '未知题目' }}</h4>
                   <p class="summary-date">{{ formatDateTime(selectedSubmission?.submit_time) }}</p>
+                  <div v-if="isAdminViewer && selectedSubmission" class="summary-stats admin-submitter-line">
+                    <span class="stat-item">
+                      <span class="stat-label">提交用户:</span>
+                      <span class="stat-value">{{ formatSubmitter(selectedSubmission) }} (ID: {{ selectedSubmission.user_id }})</span>
+                    </span>
+                  </div>
                   <div class="summary-stats">
                     <span class="stat-item">
                       <span class="stat-label">语言:</span>
@@ -143,10 +151,6 @@
                         {{ submissionDetail.passed_tests }}/{{ submissionDetail.total_tests }}
                       </span>
                     </span>
-                    <span class="stat-item" v-if="submissionDetail.judge_duration">
-                      <span class="stat-label">运行时间:</span>
-                      <span class="stat-value">{{ submissionDetail.judge_duration }}ms</span>
-                    </span>
                   </div>
                 </div>
               </div>
@@ -167,6 +171,9 @@
                     <span class="test-status" :class="{ 'passed': result.passed, 'failed': !result.passed }">
                       {{ result.passed ? '✓ 通过' : '✗ 失败' }}
                     </span>
+                    <span v-if="result.duration != null" class="test-runtime">
+                      耗时 {{ result.duration }}ms
+                    </span>
                   </div>
                   <div v-if="result.input" class="test-io">
                     <div class="test-input">
@@ -175,11 +182,11 @@
                     </div>
                     <div class="test-output">
                       <span class="test-label">期望输出:</span>
-                      <pre><code>{{ result.expected_output }}</code></pre>
+                      <pre><code>{{ result.expected }}</code></pre>
                     </div>
-                    <div v-if="!result.passed && result.actual_output" class="test-output">
+                    <div v-if="!result.passed && result.actual" class="test-output">
                       <span class="test-label">实际输出:</span>
-                      <pre><code>{{ result.actual_output }}</code></pre>
+                      <pre><code>{{ result.actual }}</code></pre>
                     </div>
                     <div v-if="result.error" class="test-error">
                       <span class="test-label">错误信息:</span>
@@ -209,7 +216,7 @@
     <div v-if="accessDenied" class="access-denied-modal" @click="goBack">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h3>{{ accessDeniedReason === 'expired' ? '提交时间已过期' : '暂无提交记录' }}</h3>
+          <h3>暂无提交记录</h3>
           <button @click="goBack" class="close-btn">×</button>
         </div>
         <div class="modal-body">
@@ -217,7 +224,7 @@
             <div class="access-denied-icon">
               <Icon name="lock" :size="64" />
             </div>
-            <p>{{ accessDeniedReason === 'expired' ? '只有近24小时内的提交才能查看提交记录，请重新提交后再查看。' : '您还没有提交过该题目，请先提交后再查看提交记录。' }}</p>
+            <p>您还没有提交过该题目，请先提交后再查看提交记录。</p>
           </div>
         </div>
         <div class="modal-footer">
@@ -232,7 +239,10 @@
     <!-- 底部 Header -->
     <div class="submissions-header-bottom">
       <h2>{{ problemInfo.title ? problemInfo.title + ' - 提交记录' : '提交记录' }}</h2>
-      <span class="submission-count">共 {{ submissions.length }} 次提交</span>
+      <span class="submission-count">
+        共 {{ submissions.length }} 次提交
+        <template v-if="isAdminViewer">（管理员：含所有用户，最多展示 500 条）</template>
+      </span>
     </div>
   </div>
 </template>
@@ -240,6 +250,18 @@
 <script setup lang="ts">import { BASE_URL } from '@/config/api'
 
 import { ref, onMounted, computed } from 'vue'
+
+function parseUserIsAdmin (): boolean {
+  try {
+    const userInfoStr = localStorage.getItem('userInfo')
+    if (!userInfoStr) return false
+    const userInfo = JSON.parse(userInfoStr)
+    const roleNames: string[] = userInfo.role_names || userInfo.roles?.map((r: { name: string }) => r.name) || []
+    return roleNames.includes('admin') || roleNames.includes('super_admin')
+  } catch {
+    return false
+  }
+}
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import Icon from '@/components/Icon.vue'
@@ -261,6 +283,16 @@ const detailLoading = ref(false)
 const codeCopied = ref(false)
 const accessDenied = ref(false)
 const accessDeniedReason = ref<'none' | 'expired'>('none')
+
+const isAdminViewer = computed(() => parseUserIsAdmin())
+
+function formatSubmitter (submission: { real_name?: string; username?: string; user_id?: number }): string {
+  if (!submission) return '-'
+  const name = (submission.real_name || '').trim()
+  const un = (submission.username || '').trim()
+  if (name && un) return `${name} (${un})`
+  return name || un || `用户 #${submission.user_id ?? '?'}`
+}
 
 // 按月份分组提交记录
 const groupedSubmissions = computed(() => {
@@ -302,63 +334,45 @@ async function fetchSubmissions() {
     }
     
     const userInfo = JSON.parse(userInfoStr)
-    
-    const params: any = {
-      userId: userInfo.id,
+    const admin = parseUserIsAdmin()
+
+    const params: Record<string, string | number> = {
       page: 1,
-      pageSize: 100
+      pageSize: admin ? 500 : 100
     }
-    
-    // 如果指定了题目ID，添加过滤
     if (problemId.value) {
       params.problemId = problemId.value
     }
-    
+    if (admin) {
+      params.all_users = 1
+      params.viewer_id = userInfo.id
+    } else {
+      params.userId = userInfo.id
+    }
+
     const response = await axios.get(`${BASE_URL}/oj/submissions`, { params })
-    
+
     const allSubmissions = response.data?.data || []
-    
-    // 如果没有提交记录
+
     if (allSubmissions.length === 0) {
+      if (admin) {
+        accessDenied.value = false
+        submissions.value = []
+        return
+      }
       accessDenied.value = true
       accessDeniedReason.value = 'none'
       submissions.value = []
       return
     }
     
-    // 按提交时间倒序排列（最新的在前）
+    // 按提交时间倒序排列（最新的在前），开放全部提交记录，无时间限制
     const sortedSubmissions = allSubmissions.sort((a: any, b: any) => {
       const timeA = new Date(a.submit_time).getTime()
       const timeB = new Date(b.submit_time).getTime()
       return timeB - timeA
     })
     
-    // 检查最近一次提交是否在24小时内
-    const latestSubmission = sortedSubmissions[0]
-    const submissionTime = new Date(latestSubmission.submit_time).getTime()
-    const now = new Date().getTime()
-    const oneDayInMs = 24 * 60 * 60 * 1000 // 24小时
-    const timeDiff = now - submissionTime
-    
-    console.log('OJ提交时间检查:', {
-      submissionTime: new Date(latestSubmission.submit_time),
-      now: new Date(),
-      timeDiff: timeDiff,
-      oneDayInMs: oneDayInMs,
-      hoursDiff: timeDiff / (60 * 60 * 1000),
-      shouldDeny: timeDiff > oneDayInMs
-    })
-    
-    if (timeDiff > oneDayInMs) {
-      console.log('访问被拒绝：提交时间超过24小时')
-      accessDenied.value = true
-      accessDeniedReason.value = 'expired'
-      submissions.value = []
-      return
-    }
-    
-    console.log('访问允许：提交时间在24小时内')
-    // 有近1天的提交，允许查看
     accessDenied.value = false
     submissions.value = sortedSubmissions
   } catch (error: any) {
@@ -375,7 +389,18 @@ async function fetchSubmissions() {
 async function fetchSubmissionDetail(submissionId: number) {
   detailLoading.value = true
   try {
-    const response = await axios.get(`${BASE_URL}/oj/submissions/${submissionId}/detail`)
+    const userInfoStr = localStorage.getItem('userInfo')
+    if (!userInfoStr) {
+      alert('请先登录')
+      return
+    }
+    const userInfo = JSON.parse(userInfoStr)
+    const admin = parseUserIsAdmin()
+    const response = await axios.get(`${BASE_URL}/oj/submissions/${submissionId}/detail`, {
+      params: admin
+        ? { viewer_id: userInfo.id }
+        : { userId: userInfo.id }
+    })
     if (response.data.success) {
       submissionDetail.value = response.data.data
     } else {

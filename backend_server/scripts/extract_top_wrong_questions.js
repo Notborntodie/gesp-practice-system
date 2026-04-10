@@ -9,7 +9,7 @@ const path = require('path');
  * 提取每个级别答错频率最高的50道题目
  * 
  * 功能：
- * 1. 统计每个级别（level 1-6）中答错次数最多的50道题目
+ * 1. 统计每个级别（level 1-8）中答错次数最多的50道题目
  * 2. 导出为JSON和CSV格式
  * 3. 提供统计信息
  */
@@ -674,11 +674,11 @@ async function main() {
       const levelArg = args.find(arg => arg.startsWith('--level=') || arg.startsWith('-l='));
       if (levelArg) {
         const levelValue = levelArg.split('=')[1];
-        targetLevels = levelValue.split(',').map(l => parseInt(l.trim())).filter(l => l >= 1 && l <= 6);
+        targetLevels = levelValue.split(',').map(l => parseInt(l.trim())).filter(l => l >= 1 && l <= 8);
       } else if (/^\d+$/.test(args[0])) {
         // 直接传级别数字
         const level = parseInt(args[0]);
-        if (level >= 1 && level <= 6) {
+        if (level >= 1 && level <= 8) {
           targetLevels = [level];
         }
       }
@@ -686,7 +686,7 @@ async function main() {
       if (targetLevels && targetLevels.length > 0) {
         console.log(`指定查询级别: ${targetLevels.join(', ')}\n`);
       } else {
-        console.log('⚠ 无效的级别参数，将查询所有级别（1-6）\n');
+        console.log('⚠ 无效的级别参数，将查询所有级别（1-8）\n');
       }
     }
     

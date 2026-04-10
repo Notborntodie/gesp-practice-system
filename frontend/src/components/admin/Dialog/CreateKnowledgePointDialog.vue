@@ -30,7 +30,9 @@
                 <option value="3">GESP 3级</option>
                 <option value="4">GESP 4级</option>
                 <option value="5">GESP 5级</option>
-                <option value="6">CSP-J</option>
+                <option value="6">GESP 6级</option>
+                <option value="7">GESP 7级</option>
+                <option value="8">GESP 8级</option>
               </select>
             </div>
           </div>

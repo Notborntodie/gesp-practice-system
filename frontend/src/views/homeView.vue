@@ -9,6 +9,37 @@
           <!-- 统一的内容滚动区域 -->
           <div class="question-content-unified">
             <div class="question-left-panel question-left-panel-centered" style="width: 100%;">
+              <!-- 倒计时：距离下次 GESP 考级 -->
+              <div class="content-section">
+                <div class="section-header">
+                  <h4 class="section-title">距离下次 GESP 考级</h4>
+                </div>
+                <div class="section-content">
+                  <div class="gesp-countdown-card">
+                    <div class="gesp-countdown-date">{{ nextExamDate }}</div>
+                    <div class="gesp-countdown-timer">
+                      <div class="gesp-time-unit">
+                        <div class="gesp-time-value">{{ countdown.days }}</div>
+                        <div class="gesp-time-label">天</div>
+                      </div>
+                      <div class="gesp-time-unit">
+                        <div class="gesp-time-value">{{ countdown.hours }}</div>
+                        <div class="gesp-time-label">时</div>
+                      </div>
+                      <div class="gesp-time-unit">
+                        <div class="gesp-time-value">{{ countdown.minutes }}</div>
+                        <div class="gesp-time-label">分</div>
+                      </div>
+                      <div class="gesp-time-unit">
+                        <div class="gesp-time-value">{{ countdown.seconds }}</div>
+                        <div class="gesp-time-label">秒</div>
+                      </div>
+                    </div>
+                    <p class="gesp-countdown-info">GESP考级：3月14日、6月27日、9月12日、12月19日</p>
+                  </div>
+                </div>
+              </div>
+
               <!-- 信奥成长计划介绍区域 -->
               <div class="content-section">
                 <div class="section-header">
@@ -48,35 +79,6 @@
                         <button class="cta-button" @click="goToPlan">
                           查看学习计划
                         </button>
-                      </div>
-                    </div>
-                    <div class="countdown-section">
-                      <div class="countdown-card">
-                        <div class="countdown-header">
-                          <h4>距离下次GESP考级</h4>
-                          <div class="exam-date">{{ nextExamDate }}</div>
-                        </div>
-                        <div class="countdown-timer">
-                          <div class="time-unit">
-                            <div class="time-value">{{ countdown.days }}</div>
-                            <div class="time-label">天</div>
-                          </div>
-                          <div class="time-unit">
-                            <div class="time-value">{{ countdown.hours }}</div>
-                            <div class="time-label">时</div>
-                          </div>
-                          <div class="time-unit">
-                            <div class="time-value">{{ countdown.minutes }}</div>
-                            <div class="time-label">分</div>
-                          </div>
-                          <div class="time-unit">
-                            <div class="time-value">{{ countdown.seconds }}</div>
-                            <div class="time-label">秒</div>
-                          </div>
-                        </div>
-                        <div class="exam-info">
-                          <p>GESP考级时间：2026年3月14日、6月27日、9月12日、12月19日</p>
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -185,88 +187,61 @@
   </template>
   
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
-// 倒计时相关
-const countdown = ref({
-  days: 0,
-  hours: 0,
-  minutes: 0,
-  seconds: 0
-})
-
+// 倒计时：距离下次 GESP 考级
+const countdown = ref({ days: 0, hours: 0, minutes: 0, seconds: 0 })
 const nextExamDate = ref('')
-
 let countdownInterval: ReturnType<typeof setInterval> | null = null
 
-// 获取GESP考试日期
 const getGESPExamDates = (year: number): Date[] => {
-  // 2026年GESP考试具体日期：3月14日、6月27日、9月12日、12月19日
-  const examDates = [
-    new Date(year, 2, 14),  // 3月14日 (月份从0开始，所以3月是2)
-    new Date(year, 5, 27),  // 6月27日
-    new Date(year, 8, 12),  // 9月12日
-    new Date(year, 11, 19)  // 12月19日
+  return [
+    new Date(year, 2, 14),
+    new Date(year, 5, 27),
+    new Date(year, 8, 12),
+    new Date(year, 11, 19)
   ]
-  return examDates
 }
 
-// 获取下次考试日期
 const getNextExamDate = (): Date => {
   const now = new Date()
   const currentYear = now.getFullYear()
-  
-  // 获取当前年份和下一年的考试日期
   const currentYearExams = getGESPExamDates(currentYear)
   const nextYearExams = getGESPExamDates(currentYear + 1)
-  
-  // 找到当前年份中还未进行的考试
   for (const examDate of currentYearExams) {
-    if (examDate > now) {
-      return examDate
-    }
+    if (examDate > now) return examDate
   }
-  
-  // 如果当年没有更多考试，返回下一年的第一个考试（3月14日）
   return nextYearExams[0]
 }
 
-// 更新倒计时
 const updateCountdown = () => {
   const nextExam = getNextExamDate()
   const now = new Date()
   const timeDiff = nextExam.getTime() - now.getTime()
-  
   if (timeDiff > 0) {
-    const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24))
-    const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-    const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60))
-    const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000)
-    
-    countdown.value = { days, hours, minutes, seconds }
-    
-    // 格式化考试日期显示
-    nextExamDate.value = nextExam.toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      weekday: 'long'
-    })
+    countdown.value = {
+      days: Math.floor(timeDiff / (1000 * 60 * 60 * 24)),
+      hours: Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+      minutes: Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60)),
+      seconds: Math.floor((timeDiff % (1000 * 60)) / 1000)
+    }
+    nextExamDate.value = nextExam.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
   } else {
-    // 如果考试时间已过，重新计算下次考试
-    const nextExam = getNextExamDate()
-    nextExamDate.value = nextExam.toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      weekday: 'long'
-    })
+    nextExamDate.value = getNextExamDate().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
   }
 }
 
+onMounted(() => {
+  updateCountdown()
+  countdownInterval = setInterval(updateCountdown, 1000)
+})
+
+onUnmounted(() => {
+  if (countdownInterval) clearInterval(countdownInterval)
+})
+
 // 跳转到学习计划页面
 const goToPlan = () => {
-  // 这里可以添加路由跳转逻辑
   window.location.href = '/plan'
 }
 
@@ -284,26 +259,12 @@ const goToObjective = () => {
 
 // 跳转到易错题页面
 const goToTopWrongQuestions = (level?: number) => {
-  // 跳转到TopWrongQuestionsView.vue
   if (level) {
     window.location.href = `/top-wrong-questions/${level}`
   } else {
     window.location.href = '/top-wrong-questions'
   }
 }
-
-// 组件挂载时启动倒计时
-onMounted(() => {
-  updateCountdown()
-  countdownInterval = setInterval(updateCountdown, 1000)
-})
-
-// 组件卸载时清理定时器
-onUnmounted(() => {
-  if (countdownInterval) {
-    clearInterval(countdownInterval)
-  }
-})
   </script>
   
   <style scoped>
@@ -419,10 +380,58 @@ onUnmounted(() => {
   gap: 8px;
 }
   
-  .section-content {
-    padding: 24px;
-    background: transparent;
-  }
+.section-content {
+  padding: 24px;
+  background: transparent;
+}
+
+/* 首页 GESP 考级倒计时 */
+.gesp-countdown-card {
+  background: linear-gradient(135deg, #e6f7ff 0%, #b3e5fc 100%);
+  border: 2px solid #87ceeb;
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  box-shadow: 0 6px 20px rgba(30, 144, 255, 0.15);
+}
+.gesp-countdown-date {
+  color: #1e90ff;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+.gesp-countdown-timer {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.gesp-time-unit {
+  min-width: 72px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid #87ceeb;
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+.gesp-time-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #2c5282;
+  line-height: 1.2;
+}
+.gesp-time-label {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 500;
+}
+.gesp-countdown-info {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid rgba(135, 206, 235, 0.5);
+  color: #64748b;
+  font-size: 0.9rem;
+}
   
 /* GESP介绍区域 */
 .gesp-intro {
@@ -511,103 +520,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 24px;
-}
-
-.countdown-section {
-  flex: 0 0 320px;
-  min-width: 0;
-}
-
-/* 倒计时卡片样式 */
-.countdown-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border: 2px solid #e0f2fe;
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 8px 32px rgba(30, 144, 255, 0.12);
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-}
-
-.countdown-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #87ceeb, #1e90ff, #87ceeb);
-}
-
-.countdown-header {
-  margin-bottom: 20px;
-}
-
-.countdown-header h4 {
-  margin: 0 0 8px 0;
-  color: #2c5282;
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
-.exam-date {
-  color: #1e90ff;
-  font-size: 0.9rem;
-  font-weight: 500;
-  background: linear-gradient(135deg, #e6f7ff, #b3e5fc);
-  padding: 6px 12px;
-  border-radius: 8px;
-  border: 1px solid #87ceeb;
-}
-
-.countdown-timer {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-
-.time-unit {
-  flex: 1;
-  background: linear-gradient(135deg, #e6f7ff, #b3e5fc);
-  border: 2px solid #87ceeb;
-  border-radius: 12px;
-  padding: 12px 8px;
-  transition: all 0.3s ease;
-}
-
-.time-unit:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(135, 206, 235, 0.3);
-}
-
-.time-value {
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: #2c5282;
-  line-height: 1;
-  margin-bottom: 4px;
-}
-
-.time-label {
-  font-size: 0.8rem;
-  color: #64748b;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.exam-info {
-  padding-top: 16px;
-  border-top: 1px solid #e2e8f0;
-}
-
-.exam-info p {
-  margin: 0;
-  color: #64748b;
-  font-size: 0.85rem;
-  line-height: 1.4;
 }
 
 .intro-text {
@@ -990,31 +902,9 @@ onUnmounted(() => {
     font-size: 2.5rem;
   }
   
-  /* 移动端倒计时布局调整 */
   .growth-plan-intro {
     flex-direction: column;
     gap: 24px;
-  }
-  
-  .countdown-section {
-    flex: none;
-    width: 100%;
-  }
-  
-  .countdown-timer {
-    gap: 6px;
-  }
-  
-  .time-unit {
-    padding: 10px 6px;
-  }
-  
-  .time-value {
-    font-size: 1.5rem;
-  }
-  
-  .time-label {
-    font-size: 0.75rem;
   }
   
   /* 移动端成长路径调整 */

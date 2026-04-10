@@ -165,6 +165,9 @@
                     <span class="test-status" :class="{ 'passed': result.passed, 'failed': !result.passed }">
                       {{ result.passed ? '✓ 通过' : '✗ 失败' }}
                     </span>
+                    <span v-if="result.duration != null" class="test-runtime">
+                      耗时 {{ result.duration }}ms
+                    </span>
                   </div>
                   <div v-if="result.input" class="test-io">
                     <div class="test-input">
@@ -173,11 +176,11 @@
                     </div>
                     <div class="test-output">
                       <span class="test-label">期望输出:</span>
-                      <pre><code>{{ result.expected_output }}</code></pre>
+                      <pre><code>{{ result.expected }}</code></pre>
                     </div>
-                    <div v-if="!result.passed && result.actual_output" class="test-output">
+                    <div v-if="!result.passed && result.actual" class="test-output">
                       <span class="test-label">实际输出:</span>
-                      <pre><code>{{ result.actual_output }}</code></pre>
+                      <pre><code>{{ result.actual }}</code></pre>
                     </div>
                     <div v-if="result.error" class="test-error">
                       <span class="test-label">错误信息:</span>

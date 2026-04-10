@@ -1,0 +1,82 @@
+[
+  {
+    "input": "150\n165\n135\n133",
+    "output": "135",
+    "is_hidden": false,
+    "is_displayed": true,
+    "sort_order": 1,
+    "explanation": "样例中 Alice 身高为 150，第 2、3 个小朋友与 Alice 身高差均为 15，选较矮的 135。"
+  },
+  {
+    "input": "100\n103\n102\n101",
+    "output": "101",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 2,
+    "explanation": null
+  },
+  {
+    "input": "199\n196\n198\n197",
+    "output": "198",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 3,
+    "explanation": null
+  },
+  {
+    "input": "130\n145\n140\n115",
+    "output": "140",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 4,
+    "explanation": null
+  },
+  {
+    "input": "150\n160\n170\n148",
+    "output": "148",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 5,
+    "explanation": null
+  },
+  {
+    "input": "100\n120\n188\n132",
+    "output": "120",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 6,
+    "explanation": null
+  },
+  {
+    "input": "199\n196\n144\n184",
+    "output": "196",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 7,
+    "explanation": null
+  },
+  {
+    "input": "113\n172\n192\n100",
+    "output": "100",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 8,
+    "explanation": null
+  },
+  {
+    "input": "158\n136\n168\n120",
+    "output": "168",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 9,
+    "explanation": null
+  },
+  {
+    "input": "103\n116\n184\n160",
+    "output": "116",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 10,
+    "explanation": null
+  }
+]

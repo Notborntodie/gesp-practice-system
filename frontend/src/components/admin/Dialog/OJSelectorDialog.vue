@@ -126,7 +126,8 @@ async function fetchProblems() {
     const response = await axios.get(`${BASE_URL}/oj/problems`, {
       params: {
         page: 1,
-        pageSize: 1000
+        pageSize: 1000,
+        include_all: 1 // 选题时需看到全部（含题库不可见），计划/测试仍可使用
       }
     })
     

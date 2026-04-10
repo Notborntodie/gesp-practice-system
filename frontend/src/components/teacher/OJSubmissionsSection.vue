@@ -191,7 +191,7 @@ const fetchOJProblems = async () => {
     if (selectedOJLevel.value) {
       params.level = selectedOJLevel.value
     }
-    
+    params.include_all = 1
     const response = await axios.get(`${BASE_URL}/oj/problems`, { params })
     console.log('获取OJ题目列表API响应:', response.data)
     

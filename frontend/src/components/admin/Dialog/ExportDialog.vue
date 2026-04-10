@@ -253,7 +253,6 @@ function cancelEditFilename() {
 }
 
 function getLevelText(level: number) {
-  if (level === 6) return 'CSP-J'
   return `GESP ${level}级`
 }
 

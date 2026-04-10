@@ -65,6 +65,21 @@ export default defineConfig({
     allowedHosts: process.env.VITE_ALLOWED_HOSTS
       ? process.env.VITE_ALLOWED_HOSTS.split(',').map((h) => h.trim()).filter(Boolean).concat(['localhost', '127.0.0.1'])
       : ['localhost', '127.0.0.1'],
+    // 代理配置：将 /api 请求代理到后端服务器
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+        secure: false,
+      },
+      // AI API 代理（如果需要）
+      '/ai-api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/ai-api/, '/api'),
+      },
+    },
   },
   // 优化依赖预构建
   optimizeDeps: {

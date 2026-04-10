@@ -1,0 +1,82 @@
+[
+  {
+    "input": "ABCDEFGVWXYZ\nDEFGHIJYZABC\nWKHTXLFNEURZQIRAMXPSVRYHUWKHODCBGRJ",
+    "output": "THEQUICKBROWNFOXJUMPSOVERTHELAZYDOG",
+    "is_hidden": false,
+    "is_displayed": true,
+    "sort_order": 1,
+    "explanation": "题面样例：已知明文 ABCDEFGVWXYZ 与密文 DEFGHIJYZABC 得偏移 3，将第三行密文按偏移 3 解密得 THEQUICKBROWNFOXJUMPSOVERTHELAZYDOG。"
+  },
+  {
+    "input": "ABC\nABC\nHELLO",
+    "output": "HELLO",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 2,
+    "explanation": null
+  },
+  {
+    "input": "A\nB\nB",
+    "output": "A",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 3,
+    "explanation": null
+  },
+  {
+    "input": "AB\nZA\nZA",
+    "output": "AB",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 4,
+    "explanation": null
+  },
+  {
+    "input": "XYZ\nWXY\nWXY",
+    "output": "XYZ",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 5,
+    "explanation": null
+  },
+  {
+    "input": "VDLTBJR\nLTBJRZH\nINSXCHMRWBGLQVAFKPUZ",
+    "output": "SXCHMRWBGLQVAFKPUZEJ",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 6,
+    "explanation": null
+  },
+  {
+    "input": "CRGVKZODSHWL\nTIXMBQFUJYNC\nQCOAMYKWIU",
+    "output": "ZLXJVHTFRD",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 7,
+    "explanation": null
+  },
+  {
+    "input": "EVMDULCTKBSJAR\nZQHYPGXOFWNEVM\nWKYMAOCQESGUIWKYM",
+    "output": "BPDRFTHVJXLZNBPDR",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 8,
+    "explanation": null
+  },
+  {
+    "input": "WFOXGPYHQZ\nBKTCLUDMVE\nYEKQWCIOUAGMS",
+    "output": "TZFLRXDJPVBHN",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 9,
+    "explanation": null
+  },
+  {
+    "input": "WFOXGP\nBKTCLU\nYEKQWCIOU",
+    "output": "TZFLRXDJP",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 10,
+    "explanation": null
+  }
+]

@@ -1,0 +1,82 @@
+[
+  {
+    "input": "10 25 1 1",
+    "output": "10",
+    "is_hidden": false,
+    "is_displayed": true,
+    "sort_order": 1,
+    "explanation": "样例：[10,25] 中数字 1 恰好出现 1 次的数有 10,12,13,14,15,16,17,18,19,21，共 10 个。"
+  },
+  {
+    "input": "1 100 0 1",
+    "output": "9",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 2,
+    "explanation": null
+  },
+  {
+    "input": "11 33 1 2",
+    "output": "1",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 3,
+    "explanation": null
+  },
+  {
+    "input": "0 10 0 1",
+    "output": "2",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 4,
+    "explanation": null
+  },
+  {
+    "input": "0 100 0 1",
+    "output": "10",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 5,
+    "explanation": null
+  },
+  {
+    "input": "1 1000 5 1",
+    "output": "243",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 6,
+    "explanation": null
+  },
+  {
+    "input": "90 200 9 1",
+    "output": "27",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 7,
+    "explanation": null
+  },
+  {
+    "input": "100 500 0 1",
+    "output": "72",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 8,
+    "explanation": null
+  },
+  {
+    "input": "1 1 1 1",
+    "output": "1",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 9,
+    "explanation": null
+  },
+  {
+    "input": "99000 100000 0 2",
+    "output": "27",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 10,
+    "explanation": null
+  }
+]

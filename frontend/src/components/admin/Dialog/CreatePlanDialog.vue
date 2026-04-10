@@ -24,6 +24,15 @@
 
           <div class="form-row">
             <div class="form-group">
+              <label>分类：</label>
+              <select v-model="formData.category">
+                <option value="">请选择分类</option>
+                <option v-for="type in allQuestionTypes" :key="type.name" :value="type.name">
+                  {{ type.display_name || type.name }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group" v-if="formData.category === 'GESP'">
               <label>级别<span class="required">*</span></label>
               <select v-model="formData.level">
                 <option value="1">GESP 1级</option>
@@ -248,6 +257,10 @@ import { ref, watch, onMounted } from 'vue'
 import axios from 'axios'
 import ExamSelectorDialog from './ExamSelectorDialog.vue'
 import OJSelectorDialog from './OJSelectorDialog.vue'
+import { useQuestionTypeStore } from '@/stores/questionTypeStore'
+
+const questionTypeStore = useQuestionTypeStore()
+const { allQuestionTypes, fetchQuestionTypes } = questionTypeStore
 
 const props = defineProps<{
   visible: boolean
@@ -261,6 +274,7 @@ import { BASE_URL } from '@/config/api'
 const formData = ref({
   name: '',
   description: '',
+  category: 'GESP',
   level: '1',
   start_time: '',
   end_time: '',
@@ -522,13 +536,17 @@ async function handleSubmit() {
   submitting.value = true
 
   try {
+    const payload = {
+      ...formData.value,
+      level: formData.value.category === 'GESP' ? (formData.value.level ? parseInt(formData.value.level) : null) : null
+    }
     if (props.plan) {
       // 编辑计划
-      await axios.put(`${BASE_URL}/learning-plans/${props.plan.id}`, formData.value)
+      await axios.put(`${BASE_URL}/learning-plans/${props.plan.id}`, payload)
       alert('学习计划更新成功')
     } else {
       // 创建计划
-      await axios.post(`${BASE_URL}/learning-plans`, formData.value)
+      await axios.post(`${BASE_URL}/learning-plans`, payload)
       alert('学习计划创建成功')
     }
     emit('success')
@@ -548,7 +566,8 @@ function initFormData() {
     formData.value = {
       name: props.plan.name || '',
       description: props.plan.description || '',
-      level: String(props.plan.level || '1'),
+      category: props.plan.category || 'GESP',
+      level: props.plan.level ? String(props.plan.level) : '',
       start_time: formatDateTimeForInput(props.plan.start_time),
       end_time: formatDateTimeForInput(props.plan.end_time),
       // 确保每个任务都有正确的 exams 和 oj_problems 数组
@@ -609,6 +628,7 @@ watch(() => props.visible, (newVal) => {
 })
 
 onMounted(() => {
+  fetchQuestionTypes()
   if (props.visible) {
     initFormData()
   }

@@ -1,0 +1,82 @@
+[
+  {
+    "input": "5\napple\nbanana\napple\nbanana\ncat",
+    "output": "apple",
+    "is_hidden": false,
+    "is_displayed": true,
+    "sort_order": 1,
+    "explanation": "样例：apple 和 banana 各 2 次，字典序最小为 apple。"
+  },
+  {
+    "input": "5\na\nb\na\na\nc",
+    "output": "a",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 2,
+    "explanation": null
+  },
+  {
+    "input": "1\nonly",
+    "output": "only",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 3,
+    "explanation": null
+  },
+  {
+    "input": "2\nzz\naa",
+    "output": "aa",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 4,
+    "explanation": null
+  },
+  {
+    "input": "6\nx\ny\nz\nx\ny\nz",
+    "output": "x",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 5,
+    "explanation": null
+  },
+  {
+    "input": "5\nhello\nworld\nhello\nhello\nworld",
+    "output": "hello",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 6,
+    "explanation": null
+  },
+  {
+    "input": "6\ndog\ncat\ndog\ncat\nbird\nbird",
+    "output": "bird",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 7,
+    "explanation": null
+  },
+  {
+    "input": "15\nsame\nsame\nsame\nsame\nsame\nsame\nsame\nsame\nsame\nsame\nother\nother\nother\nother\nother",
+    "output": "same",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 8,
+    "explanation": null
+  },
+  {
+    "input": "8\na\nb\nc\nd\ne\na\na\na",
+    "output": "a",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 9,
+    "explanation": null
+  },
+  {
+    "input": "4\nfirst\nsecond\nfirst\nsecond",
+    "output": "first",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 10,
+    "explanation": null
+  }
+]

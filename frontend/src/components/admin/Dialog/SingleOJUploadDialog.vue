@@ -7,7 +7,16 @@
           <button @click="handleClose" class="close-btn">×</button>
         </div>
         <div class="dialog-content">
-          <form @submit.prevent="uploadOJProblem" class="question-form">
+          <div class="upload-mode-toggle">
+            <button type="button" class="btn btn-secondary" :class="{ active: uploadMode === 'json' }" @click="uploadMode = 'json'">
+              JSON 上传
+            </button>
+            <button type="button" class="btn btn-secondary" :class="{ active: uploadMode === 'form' }" @click="uploadMode = 'form'">
+              表单上传
+            </button>
+          </div>
+
+          <form v-if="uploadMode === 'form'" @submit.prevent="uploadOJProblem" class="question-form">
             <!-- 基本信息 -->
             <div class="form-row">
               <div class="form-group">
@@ -15,6 +24,15 @@
                 <input v-model="problem.title" required placeholder="如：两数之和" />
               </div>
               <div class="form-group">
+                <label>分类：</label>
+                <select v-model="problem.category">
+                  <option value="">请选择分类</option>
+                  <option v-for="type in allQuestionTypes" :key="type.name" :value="type.name">
+                    {{ type.display_name || type.name }}
+                  </option>
+                </select>
+              </div>
+              <div class="form-group" v-if="problem.category === 'GESP'">
                 <label>GESP 等级：<span class="required">*</span></label>
                 <select v-model="problem.level" required>
                   <option value="1">GESP 1级</option>
@@ -110,7 +128,22 @@
                 </div>
               </div>
             </div>
+
           </form>
+
+          <div v-else class="json-upload">
+            <div class="form-group">
+              <label>
+                OJ 题目 JSON 模版：<span class="required">*</span>
+                <span class="json-hint">直接复制/编辑此 JSON，然后点击“上传题目”。</span>
+              </label>
+              <textarea v-model="jsonText" required rows="16" class="json-textarea"></textarea>
+            </div>
+
+            <div v-if="jsonError" class="json-error">
+              {{ jsonError }}
+            </div>
+          </div>
         </div>
         <div class="dialog-actions">
           <button @click="handleClose" class="btn btn-secondary">取消</button>
@@ -131,9 +164,13 @@
   
   <script setup lang="ts">import { BASE_URL } from '@/config/api'
 
-  import { ref } from 'vue'
+  import { ref, onMounted } from 'vue'
   import axios from 'axios'
   import SuccessMessageDialog from './SuccessMessageDialog.vue'
+  import { useQuestionTypeStore } from '@/stores/questionTypeStore'
+
+  const questionTypeStore = useQuestionTypeStore()
+  const { allQuestionTypes, fetchQuestionTypes } = questionTypeStore
   
   const props = defineProps<{
     visible: boolean
@@ -145,10 +182,46 @@
   }>()
   
   const uploading = ref(false)
+  const uploadMode = ref<'json' | 'form'>('json')
   
   // 成功提示相关
   const showSuccessMessage = ref(false)
   const successMessage = ref('')
+  const jsonError = ref('')
+  const todayStr = new Date().toISOString().split('T')[0]
+
+  function getJsonTemplate() {
+    // 注意：字段名需要与后端 `/api/oj/upload` 一致
+    return JSON.stringify(
+      {
+        title: '两数之和',
+        description: '题目描述：给定两个整数，输出它们的和。',
+        input_format: '一行包含两个整数 a 和 b。',
+        output_format: '一行输出 a+b。',
+        data_range: '-10^9 <= a,b <= 10^9',
+        video_url: '',
+        time_limit: 1000,
+        memory_limit: 256,
+        level: 3,
+        publish_date: todayStr,
+        bank_visible: true,
+        samples: [
+          {
+            input: '1 2',
+            output: '3',
+            explanation: '',
+            is_hidden: false,
+            is_displayed: true,
+            sort_order: 1
+          }
+        ]
+      },
+      null,
+      2
+    )
+  }
+
+  const jsonText = ref(getJsonTemplate())
   
   const problem = ref({
     title: '',
@@ -160,9 +233,74 @@
     time_limit: 1000,
     memory_limit: 256,
     level: '3',
-    publish_date: new Date().toISOString().split('T')[0],
+    category: 'GESP',
+    publish_date: todayStr,
+    bank_visible: 1,
     samples: [] as any[]
   })
+
+  function applyJsonToProblem() {
+    jsonError.value = ''
+    let data: any = null
+    try {
+      data = JSON.parse(jsonText.value)
+    } catch (e: any) {
+      jsonError.value = 'JSON 解析失败：' + (e?.message || String(e))
+      return false
+    }
+
+    if (!data || typeof data !== 'object') {
+      jsonError.value = 'JSON 顶层必须是对象'
+      return false
+    }
+
+    const samples = data.samples
+    if (!Array.isArray(samples) || samples.length === 0) {
+      jsonError.value = 'samples 必须是非空数组'
+      return false
+    }
+
+    // 将数值转换成字符串，避免后端校验中把 0 当成缺失
+    const normalizedSamples = samples.map((s: any, idx: number) => {
+      const input = s?.input ?? ''
+      const output = s?.output ?? ''
+      return {
+        input: String(input),
+        output: String(output),
+        explanation: s?.explanation ?? '',
+        is_hidden: !!s?.is_hidden,
+        is_displayed: s?.is_displayed === undefined ? true : !!s?.is_displayed,
+        sort_order: s?.sort_order ?? idx + 1
+      }
+    })
+
+    // 后端要求这些字段至少要非空
+    const requiredFields = ['title', 'description', 'input_format', 'output_format']
+    for (const k of requiredFields) {
+      if (data[k] === undefined || data[k] === null || data[k] === '') {
+        jsonError.value = `缺少必要字段：${k}`
+        return false
+      }
+    }
+
+    problem.value = {
+      title: String(data.title),
+      description: String(data.description),
+      input_format: String(data.input_format),
+      output_format: String(data.output_format),
+      data_range: data.data_range ? String(data.data_range) : '',
+      video_url: data.video_url ? String(data.video_url) : '',
+      time_limit: Number(data.time_limit ?? 1000),
+      memory_limit: Number(data.memory_limit ?? 256),
+      category: data.category || 'GESP',
+      level: data.level ? String(data.level) : '',
+      publish_date: data.publish_date ? String(data.publish_date) : todayStr,
+      bank_visible: data.bank_visible === undefined ? 1 : (data.bank_visible ? 1 : 0),
+      samples: normalizedSamples
+    }
+
+    return true
+  }
   
   // 添加样例
   function addSample() {
@@ -186,6 +324,15 @@
   
   // 上传OJ题目
   async function uploadOJProblem() {
+    if (uploadMode.value === 'json') {
+      const ok = applyJsonToProblem()
+      if (!ok) return
+      if (!problem.value.samples || problem.value.samples.length === 0) {
+        alert('请至少提供一个测试样例')
+        return
+      }
+    }
+
     if (!problem.value.title || !problem.value.description || 
         !problem.value.input_format || !problem.value.output_format) {
       alert('请填写必填字段（标题、描述、输入格式、输出格式）')
@@ -201,7 +348,7 @@
     try {
       const response = await axios.post(`${BASE_URL}/oj/upload`, {
         ...problem.value,
-        level: parseInt(problem.value.level)
+        level: problem.value.category === 'GESP' ? parseInt(problem.value.level) : null
       })
       
       // 显示成功提示
@@ -235,10 +382,14 @@
       video_url: '',
       time_limit: 1000,
       memory_limit: 256,
+      category: 'GESP',
       level: '3',
-      publish_date: new Date().toISOString().split('T')[0],
+      publish_date: todayStr,
+      bank_visible: 1,
       samples: []
     }
+    jsonText.value = getJsonTemplate()
+    jsonError.value = ''
   }
   
   function handleClose() {
@@ -253,6 +404,10 @@
     showSuccessMessage.value = false
     successMessage.value = ''
   }
+
+  onMounted(() => {
+    fetchQuestionTypes()
+  })
   </script>
   
   <style scoped>

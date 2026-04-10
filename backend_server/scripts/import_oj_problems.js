@@ -59,16 +59,17 @@ async function importOJProblems() {
       // 插入题目
       const [result] = await connection.execute(
         `INSERT INTO oj_problems (
-          title, description, input_format, output_format, data_range,
+          title, description, input_format, output_format, data_range, analysis,
           time_limit, memory_limit, level, publish_date,
           total_submissions, accepted_submissions
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           title,
           description,
           input_format || null,
           output_format || null,
           data_range || null,
+          (problem.analysis || null),
           time_limit,
           memory_limit,
           level,

@@ -35,7 +35,9 @@
           <option value="3">GESP 3级</option>
           <option value="4">GESP 4级</option>
           <option value="5">GESP 5级</option>
-          <option value="6">CSP-J</option>
+          <option value="6">GESP 6级</option>
+          <option value="7">GESP 7级</option>
+          <option value="8">GESP 8级</option>
         </select>
       </div>
       <div class="filter-group">
@@ -234,6 +236,13 @@
       @confirm="handleExportConfirm"
       @cancel="cancelExport"
     />
+
+    <EditExamDialog
+      :visible="showEditDialog"
+      :exam-id="editingExamId"
+      @close="closeEditDialog"
+      @saved="onExamEditSaved"
+    />
   </div>
 </template>
 
@@ -244,6 +253,7 @@ import axios from 'axios'
 import ConfirmDialog from './Dialog/ConfirmDialog.vue'
 import SuccessMessageDialog from './Dialog/SuccessMessageDialog.vue'
 import ExportDialog from './Dialog/ExportDialog.vue'
+import EditExamDialog from './Dialog/EditExamDialog.vue'
 import { useExamStore } from '../../stores/examStore'
 import docxExportService from '../../services/docxExportService'
 import Icon from '@/components/Icon.vue'
@@ -279,6 +289,10 @@ const successMessage = ref('')
 // 导出相关数据
 const showExportDialog = ref(false)
 const examToExport = ref<any>(null)
+
+// 编辑练习 / 试卷
+const showEditDialog = ref(false)
+const editingExamId = ref<number | null>(null)
 
 // 截断文本
 function truncateText(text: string, maxLength: number): string {
@@ -343,10 +357,24 @@ function openDetailDialog(exam: any) {
   alert(`考试详情：${exam.name}\n等级：${getLevelText(exam.level)}\n题目数量：${exam.total_questions || 0}`)
 }
 
-// 编辑弹窗事件处理
+// 编辑弹窗：卷内题目 CRUD 与元数据
 function openEditDialog(exam: any) {
-  // 暂时用alert显示编辑功能
-  alert(`编辑考试：${exam.name}\n此功能正在开发中...`)
+  editingExamId.value = exam.id
+  showEditDialog.value = true
+}
+
+function closeEditDialog() {
+  showEditDialog.value = false
+  editingExamId.value = null
+}
+
+async function onExamEditSaved() {
+  const id = editingExamId.value
+  if (id != null) {
+    await examStore.preloadExamDetails(id, true)
+  }
+  showSuccessMessage.value = true
+  successMessage.value = '练习保存成功！'
 }
 
 // 导出弹窗事件处理
@@ -459,7 +487,6 @@ function formatDate(dateStr: string) {
 
 // 等级文本
 function getLevelText(level: number) {
-  if (level === 6) return 'CSP-J'
   return `GESP ${level}级`
 }
 

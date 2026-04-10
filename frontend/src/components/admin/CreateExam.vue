@@ -37,7 +37,9 @@
               <option value="3">GESP 3级</option>
               <option value="4">GESP 4级</option>
               <option value="5">GESP 5级</option>
-              <option value="6">CSP-J</option>
+              <option value="6">GESP 6级</option>
+              <option value="7">GESP 7级</option>
+              <option value="8">GESP 8级</option>
             </select>
             <span v-if="errors.level" class="error-message">{{ errors.level }}</span>
           </div>
@@ -68,6 +70,13 @@
               rows="3"
             ></textarea>
           </div>
+
+          <div class="form-group full-width checkbox-group">
+            <label>
+              <input type="checkbox" v-model="examForm.bank_visible" />
+              题库可见（关闭后 level-exams 题库不显示，计划与测试仍可使用）
+            </label>
+          </div>
         </div>
       </div>
 
@@ -93,7 +102,9 @@
                 <option value="3">GESP 3级</option>
                 <option value="4">GESP 4级</option>
                 <option value="5">GESP 5级</option>
-                <option value="6">CSP-J</option>
+                <option value="6">GESP 6级</option>
+                <option value="7">GESP 7级</option>
+                <option value="8">GESP 8级</option>
               </select>
             </div>
             <div class="filter-dropdown">
@@ -255,7 +266,8 @@ const examForm = ref({
   name: '',
   level: '',
   type: '',
-  description: ''
+  description: '',
+  bank_visible: true
 })
 
 // 错误信息
@@ -435,6 +447,7 @@ async function createExam() {
       level: parseInt(examForm.value.level),
       type: examForm.value.type,
       description: examForm.value.description.trim(),
+      bank_visible: !!examForm.value.bank_visible,
       question_ids: selectedQuestions.value.map(q => ({
         id: q.id,
         question_number: q.question_number
@@ -479,7 +492,6 @@ function getDifficultyText(d: string) {
 
 // 等级文本
 function getLevelText(level: number) {
-  if (level === 6) return 'CSP-J'
   return `GESP ${level}级`
 }
 
@@ -828,6 +840,8 @@ onMounted(() => {
 .level-4 { background: #e3f2fd; color: #1e90ff; }
 .level-5 { background: #b3e5fc; color: #1e90ff; }
 .level-6 { background: #fef3c7; color: #d97706; }
+.level-7 { background: #dbeafe; color: #1d4ed8; }
+.level-8 { background: #fce7f3; color: #be185d; }
 
 .difficulty-badge {
   padding: 4px 8px;

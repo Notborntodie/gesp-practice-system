@@ -6,12 +6,25 @@ const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
 const { logger } = require('../config/logger');
-const { pool } = require('../config/database');
+const { pool, getValidCategories } = require('../config/database');
 const { cacheUtils } = require('../config/cache');
 const { getQueueStatus } = require('../services/judgeQueue');
 const { judgeCode } = require('../services/isolateJudge');  // 使用 isolate 轻量级判题
 
 const execFileAsync = promisify(execFile);
+
+/** admin / super_admin 可查看全站 OJ 提交 */
+async function userIsOjAdmin(userId) {
+  const uid = parseInt(userId, 10);
+  if (!uid || Number.isNaN(uid)) return false;
+  const [rows] = await pool.execute(
+    `SELECT 1 FROM user_roles ur
+     INNER JOIN roles r ON ur.role_id = r.id
+     WHERE ur.user_id = ? AND r.name IN ('admin', 'super_admin')`,
+    [uid]
+  );
+  return rows.length > 0;
+}
 
 // ==================== 可复用的OJ提交函数（同步版本，用于任务内提交） ====================
 /**
@@ -23,9 +36,10 @@ const execFileAsync = promisify(execFile);
  * @param {string} language - 语言
  * @param {number|null} task_id - 任务ID（可选，用于任务内提交）
  * @param {number|null} practice_duration_seconds - 本次练习持续时间（秒，可选）
+ * @param {number|null} test_attempt_id - Test 参与 ID（可选，用于 Test 内提交）
  * @returns {Promise<Object>} 提交结果
  */
-async function submitOjInternal(connection, user_id, problem_id, code, language, task_id = null, practice_duration_seconds = null) {
+async function submitOjInternal(connection, user_id, problem_id, code, language, task_id = null, practice_duration_seconds = null, test_attempt_id = null) {
   // 验证题目是否存在
   const [problemRows] = await connection.execute(
     'SELECT * FROM oj_problems WHERE id = ?',
@@ -89,11 +103,12 @@ async function submitOjInternal(connection, user_id, problem_id, code, language,
     });
   }
   
-  // 创建提交记录（如果提供了task_id，则记录任务ID；practice_duration_seconds 为本次练习持续时间）
+  // 创建提交记录（task_id / test_attempt_id 可选；practice_duration_seconds 为本次练习持续时间）
   const [insertResult] = await connection.execute(
     `INSERT INTO oj_submissions (
       problem_id,
       task_id,
+      test_attempt_id,
       code,
       language,
       status,
@@ -109,10 +124,11 @@ async function submitOjInternal(connection, user_id, problem_id, code, language,
       judge_duration,
       user_id,
       ip_address
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW(), NOW(), ?, ?, NULL)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW(), NOW(), ?, ?, NULL)`,
     [
       problem_id,
       task_id,
+      test_attempt_id,
       code,
       language,
       status,
@@ -308,30 +324,38 @@ router.post('/oj/run', async (req, res) => {
  * GET /api/oj/problems
  * 
  * 查询参数:
- * - level: GESP级别（1-6）
+ * - level: GESP级别（1-8）
  * - page: 页码（默认1）
  * - pageSize: 每页数量（默认20）
  */
 router.get('/oj/problems', async (req, res) => {
   try {
-    const { level, page = 1, pageSize = 20 } = req.query;
+    const { level, page = 1, pageSize = 20, include_all } = req.query;
     const offset = (page - 1) * pageSize;
-    
+    const forBankOnly = !include_all; // 题库列表只显示 bank_visible=1；管理/选题传 include_all=1 可见全部
+
     let query = 'SELECT * FROM oj_problems';
     let countQuery = 'SELECT COUNT(*) as total FROM oj_problems';
     const params = [];
-    
+    const conditions = [];
     if (level) {
-      query += ' WHERE level = ?';
-      countQuery += ' WHERE level = ?';
+      conditions.push('level = ?');
       params.push(level);
     }
-    
+    if (forBankOnly) {
+      conditions.push('bank_visible = 1');
+    }
+    if (conditions.length) {
+      query += ' WHERE ' + conditions.join(' AND ');
+      countQuery += ' WHERE ' + conditions.join(' AND ');
+    }
+
     query += ' ORDER BY publish_date DESC, id DESC LIMIT ? OFFSET ?';
     params.push(parseInt(pageSize), parseInt(offset));
-    
+
     const [problems] = await pool.query(query, params);
-    const [countResult] = await pool.query(countQuery, level ? [level] : []);
+    const countParams = params.slice(0, -2);
+    const [countResult] = await pool.query(countQuery, countParams.length ? countParams : []);
     
     res.json({
       success: true,
@@ -495,24 +519,37 @@ router.post('/oj/upload', async (req, res) => {
       memory_limit = 256,
       level,
       publish_date,
+      video_url,
+      bank_visible = 1,
       samples = []
     } = req.body;
     
     // 参数验证
-    if (!title || !description || !level) {
+    if (!title || !description) {
       return res.status(400).json({
         success: false,
-        error: '缺少必要参数：title, description, level'
+        error: '缺少必要参数：title, description'
       });
     }
-    
-    if (level < 1 || level > 6) {
+
+    // 验证 category（如果提供）
+    const category = req.body.category || 'GESP';
+    const validCategories = await getValidCategories();
+    if (!validCategories.includes(category)) {
       return res.status(400).json({
         success: false,
-        error: 'level必须在1-6之间'
+        error: `category 必须是以下值之一：${validCategories.join(', ')}`
       });
     }
-    
+
+    // GESP 分类必须有 level
+    if (category === 'GESP' && !level) {
+      return res.status(400).json({
+        success: false,
+        error: 'GESP 分类必须指定 level'
+      });
+    }
+
     if (!Array.isArray(samples) || samples.length === 0) {
       return res.status(400).json({
         success: false,
@@ -532,19 +569,19 @@ router.post('/oj/upload', async (req, res) => {
     }
     
     await connection.beginTransaction();
-    
+
     // 插入题目
     const [result] = await connection.query(
       `INSERT INTO oj_problems (
         title, description, input_format, output_format, data_range, video_url,
-        time_limit, memory_limit, level, publish_date
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        time_limit, memory_limit, level, category, publish_date, bank_visible
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [title, description, input_format, output_format, data_range, video_url,
-       time_limit, memory_limit, level, publish_date]
+       time_limit, memory_limit, level || null, category, publish_date, bank_visible ? 1 : 0]
     );
-    
+
     const problemId = result.insertId;
-    
+
     // 批量插入测试样例
     const sampleIds = [];
     for (const sample of samples) {
@@ -617,31 +654,43 @@ router.post('/oj/problems', async (req, res) => {
       memory_limit = 256,
       level,
       publish_date,
-      video_url
+      video_url,
+      bank_visible = 1
     } = req.body;
-    
+
     // 参数验证
-    if (!title || !description || !level) {
+    if (!title || !description) {
       return res.status(400).json({
         success: false,
-        error: '缺少必要参数：title, description, level'
+        error: '缺少必要参数：title, description'
       });
     }
-    
-    if (level < 1 || level > 6) {
+
+    // 验证 category（如果提供）
+    const category = req.body.category || 'GESP';
+    const validCategories = await getValidCategories();
+    if (!validCategories.includes(category)) {
       return res.status(400).json({
         success: false,
-        error: 'level必须在1-6之间'
+        error: `category 必须是以下值之一：${validCategories.join(', ')}`
       });
     }
-    
+
+    // GESP 分类必须有 level
+    if (category === 'GESP' && !level) {
+      return res.status(400).json({
+        success: false,
+        error: 'GESP 分类必须指定 level'
+      });
+    }
+
     const [result] = await pool.query(
       `INSERT INTO oj_problems (
         title, description, input_format, output_format, data_range, video_url,
-        time_limit, memory_limit, level, publish_date
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        time_limit, memory_limit, level, category, publish_date, bank_visible
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [title, description, input_format, output_format, data_range, video_url,
-       time_limit, memory_limit, level, publish_date]
+       time_limit, memory_limit, level || null, category, publish_date, bank_visible ? 1 : 0]
     );
     
     logger.info('创建题目成功', { problemId: result.insertId, title });
@@ -695,14 +744,16 @@ router.put('/oj/problems/:id', async (req, res) => {
       input_format,
       output_format,
       data_range,
+      analysis,
       video_url,
       time_limit,
       memory_limit,
       level,
       publish_date,
+      bank_visible,
       samples
     } = req.body;
-    
+
     // 检查题目是否存在
     const [existing] = await connection.query('SELECT id FROM oj_problems WHERE id = ?', [id]);
     if (existing.length === 0) {
@@ -719,19 +770,30 @@ router.put('/oj/problems/:id', async (req, res) => {
     if (input_format !== undefined) { updates.push('input_format = ?'); params.push(input_format); }
     if (output_format !== undefined) { updates.push('output_format = ?'); params.push(output_format); }
     if (data_range !== undefined) { updates.push('data_range = ?'); params.push(data_range); }
+    if (analysis !== undefined) { updates.push('analysis = ?'); params.push(analysis); }
     if (time_limit !== undefined) { updates.push('time_limit = ?'); params.push(time_limit); }
     if (memory_limit !== undefined) { updates.push('memory_limit = ?'); params.push(memory_limit); }
     if (level !== undefined) {
-      if (level < 1 || level > 6) {
-        await connection.rollback();
-        return res.status(400).json({ success: false, error: 'level必须在1-6之间' });
-      }
       updates.push('level = ?');
       params.push(level);
     }
+    // 验证 category（如果提供）
+    if (category !== undefined) {
+      const validCategories = await getValidCategories();
+      if (!validCategories.includes(category)) {
+        await connection.rollback();
+        return res.status(400).json({
+          success: false,
+          error: `category 必须是以下值之一：${validCategories.join(', ')}`
+        });
+      }
+      updates.push('category = ?');
+      params.push(category);
+    }
     if (publish_date !== undefined) { updates.push('publish_date = ?'); params.push(publish_date); }
     if (video_url !== undefined) { updates.push('video_url = ?'); params.push(video_url); }
-    
+    if (bank_visible !== undefined) { updates.push('bank_visible = ?'); params.push(bank_visible ? 1 : 0); }
+
     // 更新题目基本信息
     if (updates.length > 0) {
       params.push(id);
@@ -1400,11 +1462,23 @@ router.get('/oj/submissions/:id', async (req, res) => {
 router.get('/oj/submissions/:id/detail', async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId } = req.query;
-    
-    const whereClause = userId ? 's.id = ? AND s.user_id = ?' : 's.id = ?';
-    const params = userId ? [id, userId] : [id];
-    
+    const userId = req.query.userId != null ? parseInt(req.query.userId, 10) : null;
+    const viewerId = req.query.viewer_id != null ? parseInt(req.query.viewer_id, 10) : null;
+
+    const [metaRows] = await pool.query(
+      'SELECT user_id FROM oj_submissions WHERE id = ?',
+      [id]
+    );
+    if (!metaRows.length) {
+      return res.status(404).json({ success: false, error: '提交记录不存在' });
+    }
+    const ownerId = metaRows[0].user_id;
+    const ownerMatch = userId != null && !Number.isNaN(userId) && userId === ownerId;
+    const adminOk = viewerId != null && !Number.isNaN(viewerId) && await userIsOjAdmin(viewerId);
+    if (!ownerMatch && !adminOk) {
+      return res.status(403).json({ success: false, error: '无权查看该提交' });
+    }
+
     const [rows] = await pool.query(
       `SELECT 
         s.id,
@@ -1426,8 +1500,8 @@ router.get('/oj/submissions/:id/detail', async (req, res) => {
         s.ip_address
        FROM oj_submissions s
        LEFT JOIN oj_problems p ON s.problem_id = p.id
-       WHERE ${whereClause}`,
-      params
+       WHERE s.id = ?`,
+      [id]
     );
     
     if (rows.length === 0) {
@@ -1460,11 +1534,11 @@ router.get('/oj/submissions/:id/detail', async (req, res) => {
  * GET /api/oj/submissions
  * 
  * 查询参数:
- * - userId: 用户ID（必填）
+ * - userId: 用户ID（本人查看时必填）
+ * - all_users: 1 时管理员可查全部用户提交（须配合 viewer_id）
+ * - viewer_id: 当前操作者用户ID，用于校验管理员身份
  * - problemId: 题目ID（可选）
- * - page: 页码（默认1）
- * - pageSize: 每页数量（默认20）
- * - status: 过滤状态（可选：completed, error）
+ * - page / pageSize / status
  */
 router.get('/oj/submissions', async (req, res) => {
   try {
@@ -1473,20 +1547,99 @@ router.get('/oj/submissions', async (req, res) => {
       problemId,
       page = 1,
       pageSize = 20,
-      status
+      status,
+      all_users,
+      viewer_id
     } = req.query;
-    
+
+    const pageNumber = parseInt(page, 10) || 1;
+    let size = parseInt(pageSize, 10) || 20;
+    const offset = (pageNumber - 1) * size;
+
+    const allUsers = all_users === '1' || all_users === 'true';
+    const viewerId = viewer_id != null ? parseInt(viewer_id, 10) : null;
+
+    if (allUsers) {
+      if (!viewerId || Number.isNaN(viewerId)) {
+        return res.status(400).json({
+          success: false,
+          error: '管理员查看全部提交时需传 viewer_id'
+        });
+      }
+      const ok = await userIsOjAdmin(viewerId);
+      if (!ok) {
+        return res.status(403).json({
+          success: false,
+          error: '仅管理员可查看全部用户提交'
+        });
+      }
+      size = Math.min(Math.max(size, 1), 500);
+
+      let query = `
+      SELECT 
+        s.id,
+        s.problem_id,
+        p.title AS problem_title,
+        s.language,
+        s.status,
+        s.verdict,
+        s.total_tests,
+        s.passed_tests,
+        s.submit_time,
+        s.judge_duration,
+        s.user_id,
+        u.username,
+        u.real_name
+      FROM oj_submissions s
+      LEFT JOIN oj_problems p ON s.problem_id = p.id
+      LEFT JOIN users u ON s.user_id = u.id
+      WHERE 1=1
+    `;
+      const params = [];
+
+      if (problemId) {
+        query += ' AND s.problem_id = ?';
+        params.push(parseInt(problemId, 10));
+      }
+      if (status) {
+        query += ' AND s.status = ?';
+        params.push(status);
+      }
+      query += ' ORDER BY s.submit_time DESC LIMIT ? OFFSET ?';
+      params.push(size, offset);
+
+      const [submissions] = await pool.query(query, params);
+
+      let countQuery = 'SELECT COUNT(*) AS total FROM oj_submissions WHERE 1=1';
+      const countParams = [];
+      if (problemId) {
+        countQuery += ' AND problem_id = ?';
+        countParams.push(parseInt(problemId, 10));
+      }
+      if (status) {
+        countQuery += ' AND status = ?';
+        countParams.push(status);
+      }
+      const [countResult] = await pool.query(countQuery, countParams);
+
+      return res.json({
+        success: true,
+        data: submissions,
+        pagination: {
+          page: pageNumber,
+          pageSize: size,
+          total: countResult[0]?.total || 0
+        }
+      });
+    }
+
     if (!userId) {
       return res.status(400).json({
         success: false,
         error: '缺少必要参数：userId'
       });
     }
-    
-    const pageNumber = parseInt(page, 10) || 1;
-    const size = parseInt(pageSize, 10) || 20;
-    const offset = (pageNumber - 1) * size;
-    
+
     let query = `
       SELECT 
         s.id,
@@ -1503,39 +1656,39 @@ router.get('/oj/submissions', async (req, res) => {
       LEFT JOIN oj_problems p ON s.problem_id = p.id
       WHERE s.user_id = ?
     `;
-    
+
     const params = [userId];
-    
+
     if (problemId) {
       query += ' AND s.problem_id = ?';
       params.push(problemId);
     }
-    
+
     if (status) {
       query += ' AND s.status = ?';
       params.push(status);
     }
-    
+
     query += ' ORDER BY s.submit_time DESC LIMIT ? OFFSET ?';
     params.push(size, offset);
-    
+
     const [submissions] = await pool.query(query, params);
-    
+
     let countQuery = 'SELECT COUNT(*) AS total FROM oj_submissions WHERE user_id = ?';
     const countParams = [userId];
-    
+
     if (problemId) {
       countQuery += ' AND problem_id = ?';
       countParams.push(problemId);
     }
-    
+
     if (status) {
       countQuery += ' AND status = ?';
       countParams.push(status);
     }
-    
+
     const [countResult] = await pool.query(countQuery, countParams);
-    
+
     res.json({
       success: true,
       data: submissions,
@@ -1545,7 +1698,6 @@ router.get('/oj/submissions', async (req, res) => {
         total: countResult[0]?.total || 0
       }
     });
-    
   } catch (error) {
     logger.error('查询提交历史失败', { error: error.message });
     res.status(500).json({ success: false, error: error.message });

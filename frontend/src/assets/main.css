@@ -28,7 +28,8 @@ a,
     place-items: center;
   }
 
-  #app {
+  /* 动画页面、公开查分/计划进度页使用单栏全宽，避免双栏导致缩小浏览器时布局异常 */
+  #app:not(.animation-page):not(.public-query-page) {
     display: grid;
     grid-template-columns: 1fr 1fr;
     padding: 0;

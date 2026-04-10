@@ -28,6 +28,8 @@ SERVER_IP="${DEPLOY_SERVER_IP:-}"
 SERVER_USER="${DEPLOY_SERVER_USER:-root}"
 DEPLOY_PATH="${DEPLOY_PATH:-/var/www/gesp-frontend}"
 NGINX_CONFIG_PATH="${NGINX_CONFIG_PATH:-/etc/nginx/conf.d/gesp-frontend.conf}"
+# 动画上传目录（独立于部署目录，避免 rm -rf 清空时删除教师上传的动画）
+ANIMATIONS_UPLOAD_PATH="${ANIMATIONS_UPLOAD_PATH:-/var/www/gesp-uploads/html}"
 
 # HTTPS/SSL配置（可选，如果配置了SSL证书路径，则启用HTTPS）
 DOMAIN_NAME="${DOMAIN_NAME:-}"
@@ -216,6 +218,12 @@ upload_files() {
         # 复制文件
         cp -r dist/* ${DEPLOY_PATH}/
         
+        # 同步内置动画到独立上传目录（保留教师已上传的 animation-*.html）
+        mkdir -p ${ANIMATIONS_UPLOAD_PATH}
+        if [ -d "dist/html" ]; then
+            cp -n dist/html/* ${ANIMATIONS_UPLOAD_PATH}/ 2>/dev/null || cp dist/html/* ${ANIMATIONS_UPLOAD_PATH}/ 2>/dev/null || true
+        fi
+        
         log_success "文件复制完成"
     else
         log_info "上传文件到服务器..."
@@ -225,6 +233,9 @@ upload_files() {
         
         # 使用scp上传文件
         scp -r dist/* ${SERVER_USER}@${SERVER_IP}:${DEPLOY_PATH}/
+        
+        # 同步内置动画到独立上传目录（保留教师已上传的 animation-*.html，不被部署清空）
+        ssh ${SERVER_USER}@${SERVER_IP} "mkdir -p ${ANIMATIONS_UPLOAD_PATH} && [ -d ${DEPLOY_PATH}/html ] && cp -n ${DEPLOY_PATH}/html/* ${ANIMATIONS_UPLOAD_PATH}/ 2>/dev/null || cp ${DEPLOY_PATH}/html/* ${ANIMATIONS_UPLOAD_PATH}/ 2>/dev/null || true"
         
         log_success "文件上传完成"
     fi
@@ -381,6 +392,12 @@ server {
         proxy_read_timeout 60s;
     }
 
+    # 动画HTML文件（独立于部署目录，避免前端部署清空时删除教师上传的动画）
+    location ^~ /html/ {
+        alias ${ANIMATIONS_UPLOAD_PATH}/;
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+    }
+
     # 处理Vue Router的history模式
     location / {
         try_files \$uri \$uri/ /index.html;
@@ -477,6 +494,12 @@ server {
         proxy_read_timeout 60s;
     }
 
+    # 动画HTML文件（独立于部署目录，避免前端部署清空时删除教师上传的动画）
+    location ^~ /html/ {
+        alias ${ANIMATIONS_UPLOAD_PATH}/;
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+    }
+
     # 处理Vue Router的history模式
     location / {
         try_files \$uri \$uri/ /index.html;
@@ -549,6 +572,8 @@ set_permissions() {
         
         chown -R ${nginx_user}:${nginx_user} ${DEPLOY_PATH}
         chmod -R 755 ${DEPLOY_PATH}
+        # 动画上传目录权限（Nginx 需能读取）
+        [ -d "${ANIMATIONS_UPLOAD_PATH}" ] && chown -R ${nginx_user}:${nginx_user} $(dirname ${ANIMATIONS_UPLOAD_PATH}) 2>/dev/null || true
     else
         if ! ssh ${SERVER_USER}@${SERVER_IP} "id -u www-data >/dev/null 2>&1"; then
             if ssh ${SERVER_USER}@${SERVER_IP} "id -u nginx >/dev/null 2>&1"; then
@@ -565,6 +590,7 @@ set_permissions() {
         ssh ${SERVER_USER}@${SERVER_IP} "
             chown -R ${nginx_user}:${nginx_user} ${DEPLOY_PATH}
             chmod -R 755 ${DEPLOY_PATH}
+            [ -d ${ANIMATIONS_UPLOAD_PATH} ] && chown -R ${nginx_user}:${nginx_user} $(dirname ${ANIMATIONS_UPLOAD_PATH}) || true
         "
     fi
     

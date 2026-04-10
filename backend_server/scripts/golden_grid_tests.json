@@ -1,0 +1,82 @@
+[
+  {
+    "input": "4\n4\n2",
+    "output": "4",
+    "is_hidden": false,
+    "is_displayed": true,
+    "sort_order": 1,
+    "explanation": "样例：H=4, W=4, x=2，满足条件的黄金格数量为 4。"
+  },
+  {
+    "input": "3\n7\n2",
+    "output": "3",
+    "is_hidden": false,
+    "is_displayed": true,
+    "sort_order": 2,
+    "explanation": null
+  },
+  {
+    "input": "8\n5\n4",
+    "output": "21",
+    "is_hidden": false,
+    "is_displayed": true,
+    "sort_order": 3,
+    "explanation": null
+  },
+  {
+    "input": "13\n11\n6",
+    "output": "52",
+    "is_hidden": false,
+    "is_displayed": true,
+    "sort_order": 4,
+    "explanation": null
+  },
+  {
+    "input": "47\n23\n15",
+    "output": "524",
+    "is_hidden": false,
+    "is_displayed": true,
+    "sort_order": 5,
+    "explanation": null
+  },
+  {
+    "input": "100\n87\n33",
+    "output": "2496",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 6,
+    "explanation": null
+  },
+  {
+    "input": "256\n312\n88",
+    "output": "17140",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 7,
+    "explanation": null
+  },
+  {
+    "input": "501\n499\n177",
+    "output": "67417",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 8,
+    "explanation": null
+  },
+  {
+    "input": "1000\n1000\n500",
+    "output": "362252",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 9,
+    "explanation": null
+  },
+  {
+    "input": "137\n891\n234",
+    "output": "19392",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 10,
+    "explanation": null
+  }
+]

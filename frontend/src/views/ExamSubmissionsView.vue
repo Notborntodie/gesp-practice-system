@@ -220,7 +220,7 @@
     <div v-if="accessDenied" class="access-denied-modal" @click="goBack">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h3>{{ accessDeniedReason === 'expired' ? '提交时间已过期' : '暂无提交记录' }}</h3>
+          <h3>暂无提交记录</h3>
           <button @click="goBack" class="close-btn">×</button>
         </div>
         <div class="modal-body">
@@ -228,7 +228,7 @@
             <div class="access-denied-icon">
               <Icon name="lock" :size="64" />
             </div>
-            <p>{{ accessDeniedReason === 'expired' ? '只有近24小时内的提交才能查看提交记录，请重新提交后再查看。' : '您还没有提交过该考试，请先提交后再查看提交记录。' }}</p>
+            <p>您还没有提交过该考试，请先提交后再查看提交记录。</p>
           </div>
         </div>
         <div class="modal-footer">
@@ -336,40 +336,13 @@ async function fetchSubmissions() {
       return
     }
     
-    // 按提交时间倒序排列（最新的在前）
+    // 按提交时间倒序排列（最新的在前），开放全部提交记录，无时间限制
     const sortedSubmissions = allSubmissions.sort((a: any, b: any) => {
       const timeA = new Date(a.submit_time).getTime()
       const timeB = new Date(b.submit_time).getTime()
       return timeB - timeA
     })
     
-    // 检查最近一次提交是否在24小时内
-    const latestSubmission = sortedSubmissions[0]
-    const submissionTime = new Date(latestSubmission.submit_time).getTime()
-    const now = new Date().getTime()
-    const oneDayInMs = 24 * 60 * 60 * 1000 // 24小时
-    const timeDiff = now - submissionTime
-    
-    console.log('提交时间检查:', {
-      submissionTime: new Date(latestSubmission.submit_time),
-      now: new Date(),
-      timeDiff: timeDiff,
-      oneDayInMs: oneDayInMs,
-      hoursDiff: timeDiff / (60 * 60 * 1000),
-      shouldDeny: timeDiff > oneDayInMs
-    })
-    
-    if (timeDiff > oneDayInMs) {
-      console.log('访问被拒绝：提交时间超过24小时')
-      accessDenied.value = true
-      accessDeniedReason.value = 'expired'
-      submissions.value = []
-      return
-    }
-    
-    console.log('访问允许：提交时间在24小时内')
-    
-    // 有近1天的提交，允许查看
     accessDenied.value = false
     submissions.value = sortedSubmissions
   } catch (error: any) {
@@ -403,7 +376,6 @@ async function fetchSubmissionDetail(submissionId: number) {
 
 // 等级文本
 function getLevelText(level: number) {
-  if (level === 6) return 'CSP-J'
   return `GESP ${level}级`
 }
 
@@ -452,16 +424,15 @@ function getScoreText(score: number) {
 
 // 返回上一页
 function goBack() {
-  // 检查是否从任务页面跳转过来
   const from = route.query.from as string
   const planId = route.query.planId as string
   const taskId = route.query.taskId as string
-  
-  if (from === 'taskview' && planId && taskId) {
-    // 从任务页面跳转过来的，返回到任务页面的专项练习题标签
+
+  if (from === 'plan-submissions') {
+    router.push('/plan/submissions')
+  } else if (from === 'taskview' && planId && taskId) {
     router.push(`/plan/${planId}/tasks/${taskId}?tab=exercises`)
   } else {
-    // 默认返回到客观题选择页面
     router.push(`/level-exams/${examInfo.value.level}`)
   }
 }

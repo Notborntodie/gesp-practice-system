@@ -217,14 +217,14 @@ function getDifficulty(level: number) {
 // 获取目标人群
 function getTargetAudience(level: number) {
   if (level <= 3) return '初学者'
-  if (level <= 6) return '进阶者'
+  if (level <= 8) return '进阶者'
   return '高级者'
 }
 
 // 获取预计时间
 function getEstimatedTime(level: number) {
   if (level <= 3) return '30分钟'
-  if (level <= 6) return '45分钟'
+  if (level <= 8) return '45分钟'
   return '60分钟'
 }
 

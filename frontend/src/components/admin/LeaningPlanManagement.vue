@@ -19,6 +19,8 @@
             <option value="4">GESP 4级</option>
             <option value="5">GESP 5级</option>
             <option value="6">GESP 6级</option>
+            <option value="7">GESP 7级</option>
+            <option value="8">GESP 8级</option>
           </select>
         </div>
         
@@ -88,6 +90,14 @@
                     </button>
                     <button @click="copyPlan(plan)" class="btn-action btn-copy" title="复制">
                       <Icon name="copy" :size="18" />
+                    </button>
+                    <button
+                      class="btn-action btn-plan-link"
+                      title="成长计划链接"
+                      :disabled="enablingPlanProgress === plan.id"
+                      @click="showPlanQr(plan)"
+                    >
+                      {{ enablingPlanProgress === plan.id ? '…' : '成长计划链接' }}
                     </button>
                     <button @click="deletePlan(plan.id)" class="btn-action btn-delete" title="删除">
                       <Icon name="trash-2" :size="18" />
@@ -171,6 +181,55 @@
         :message="successMessage"
         @close="showSuccessDialog = false"
       />
+
+      <!-- 成长计划链接/二维码弹窗 -->
+      <div v-if="qrPlan" class="modal-overlay modal-qr-overlay" @click="qrPlan = null">
+        <div class="modal-card modal-qr-card" @click.stop>
+          <div class="modal-qr-header">
+            <h4>{{ qrPlan.name }}</h4>
+            <span class="modal-qr-subtitle">成长计划进度查询链接</span>
+            <button type="button" class="modal-qr-close" aria-label="关闭" @click="qrPlan = null">×</button>
+          </div>
+          <div class="modal-qr-body">
+            <div class="qr-block">
+              <p class="qr-hint">学员手机扫码即可查看本计划完成情况</p>
+              <div class="qr-canvas-wrap">
+                <img
+                  v-if="publicPlanProgressUrl"
+                  :src="qrCodeImageUrlPlan"
+                  alt="成长计划二维码"
+                  class="qr-image"
+                  width="200"
+                  height="200"
+                  ref="qrPlanImageRef"
+                />
+              </div>
+              <button
+                type="button"
+                class="btn-copy-qr"
+                :class="{ copied: copyPlanQrSuccess }"
+                :disabled="!publicPlanProgressUrl || copyingPlanQr"
+                @click="copyPlanQrImage"
+              >
+                {{ copyingPlanQr ? '复制中...' : copyPlanQrSuccess ? '已复制' : '复制二维码图片' }}
+              </button>
+            </div>
+            <div class="url-block">
+              <p class="url-label">或复制链接发给学员</p>
+              <div class="url-box">
+                <input :value="publicPlanProgressUrl" readonly class="url-input" />
+                <button type="button" class="btn-copy" :class="{ copied: copyPlanSuccess }" @click="copyPlanUrl">
+                  {{ copyPlanSuccess ? '已复制' : '复制' }}
+                </button>
+              </div>
+              <p class="tip">打开链接后输入姓名或用户名可查个人成长计划完成情况（重名时优先显示完成度更高的学员）</p>
+            </div>
+          </div>
+          <div class="modal-qr-footer">
+            <button type="button" class="btn-close" @click="qrPlan = null">关闭</button>
+          </div>
+        </div>
+      </div>
     </div>
   </template>
   
@@ -215,6 +274,27 @@ const selectAllStudents = computed({
 
 // 获取用户信息
 const userInfo = ref<any>(null)
+
+// 成长计划链接/二维码
+const qrPlan = ref<any>(null)
+const enablingPlanProgress = ref<number | null>(null)
+const publicPlanBase = computed(() =>
+  typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '')
+const publicPlanProgressUrl = computed(() => {
+  if (!qrPlan.value?.public_progress_token) return ''
+  return `${publicPlanBase.value}/public-plans/${qrPlan.value.public_progress_token}`
+})
+const qrCodeImageUrlPlan = computed(() => {
+  const url = publicPlanProgressUrl.value
+  if (!url) return ''
+  return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&data=${encodeURIComponent(url)}`
+})
+const copyPlanSuccess = ref(false)
+let copyPlanSuccessTimer: ReturnType<typeof setTimeout> | null = null
+const copyPlanQrSuccess = ref(false)
+let copyPlanQrSuccessTimer: ReturnType<typeof setTimeout> | null = null
+const copyingPlanQr = ref(false)
+const qrPlanImageRef = ref<HTMLImageElement | null>(null)
 
 // 成功消息弹窗
 const showSuccessDialog = ref(false)
@@ -507,6 +587,101 @@ async function addStudentsToPlan() {
   }
 }
 
+// 成长计划链接：未开启时先开启再展示二维码
+async function showPlanQr(plan: any) {
+  const uid = userInfo.value?.id
+  if (!uid) {
+    alert('请先登录')
+    return
+  }
+  if (plan.public_progress_enabled && plan.public_progress_token) {
+    qrPlan.value = plan
+    return
+  }
+  enablingPlanProgress.value = plan.id
+  try {
+    const res = await fetch(`${BASE_URL}/learning-plans/${plan.id}/enable-public-progress`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: uid })
+    })
+    const data = await res.json()
+    if (res.ok && data.public_progress_token) {
+      plan.public_progress_enabled = true
+      plan.public_progress_token = data.public_progress_token
+      qrPlan.value = plan
+    } else {
+      alert(data.error || '开启失败')
+    }
+  } catch (e) {
+    console.error(e)
+    alert('网络错误，请稍后重试')
+  } finally {
+    enablingPlanProgress.value = null
+  }
+}
+
+function copyPlanUrl() {
+  if (copyPlanSuccessTimer) clearTimeout(copyPlanSuccessTimer)
+  try {
+    navigator.clipboard.writeText(publicPlanProgressUrl.value)
+    copyPlanSuccess.value = true
+    copyPlanSuccessTimer = setTimeout(() => {
+      copyPlanSuccess.value = false
+      copyPlanSuccessTimer = null
+    }, 2000)
+  } catch {
+    alert('复制失败，请手动复制链接')
+  }
+}
+
+async function copyPlanQrImage() {
+  if (!publicPlanProgressUrl.value || copyingPlanQr.value) return
+  if (copyPlanQrSuccessTimer) clearTimeout(copyPlanQrSuccessTimer)
+  copyingPlanQr.value = true
+  copyPlanQrSuccess.value = false
+  try {
+    const url = qrCodeImageUrlPlan.value
+    const res = await fetch(url, { mode: 'cors' })
+    if (!res.ok) throw new Error('fetch failed')
+    const blob = await res.blob()
+    if (!blob.type.startsWith('image/')) throw new Error('not image')
+    await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })])
+    copyPlanQrSuccess.value = true
+    copyPlanQrSuccessTimer = setTimeout(() => {
+      copyPlanQrSuccess.value = false
+      copyPlanQrSuccessTimer = null
+    }, 2000)
+  } catch {
+    try {
+      const img = qrPlanImageRef.value
+      if (img && img.complete && img.naturalWidth) {
+        const canvas = document.createElement('canvas')
+        canvas.width = img.naturalWidth
+        canvas.height = img.naturalHeight
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          ctx.drawImage(img, 0, 0)
+          const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+          if (blob && navigator.clipboard?.write) {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+            copyPlanQrSuccess.value = true
+            copyPlanQrSuccessTimer = setTimeout(() => {
+              copyPlanQrSuccess.value = false
+              copyPlanQrSuccessTimer = null
+            }, 2000)
+          } else throw new Error('toBlob failed')
+        } else throw new Error('no context')
+      } else throw new Error('image not loaded')
+    } catch (e2) {
+      console.error(e2)
+      alert('复制二维码图片失败，请右键保存图片后发送')
+    }
+  } finally {
+    copyingPlanQr.value = false
+  }
+}
+
 onMounted(() => {
   // 获取用户信息
   const userInfoStr = localStorage.getItem('userInfo')
@@ -736,6 +911,22 @@ onMounted(() => {
     transform: translateY(-1px);
   }
 
+  .btn-plan-link {
+    background: #38bdf8;
+    color: white;
+    font-size: 12px;
+  }
+
+  .btn-plan-link:hover:not(:disabled) {
+    background: #0ea5e9;
+    transform: translateY(-1px);
+  }
+
+  .btn-plan-link:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
   .btn-delete {
     background: #ef4444;
     color: white;
@@ -920,6 +1111,36 @@ onMounted(() => {
     width: 16px;
     height: 16px;
   }
+
+  /* 成长计划链接/二维码弹窗 */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; overflow-y: auto; }
+  .modal-card { background: #fff; border-radius: 12px; padding: 24px; max-width: 480px; width: 90%; }
+  .modal-card h4 { margin: 0 0 12px 0; }
+  .modal-qr-card { max-width: 420px; padding: 0; overflow: hidden; border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.2); }
+  .modal-qr-header { position: relative; padding: 20px 24px 16px; background: linear-gradient(135deg, #f0f9ff, #e0f2fe); border-bottom: 1px solid #bae6fd; }
+  .modal-qr-header h4 { margin: 0 0 4px 0; font-size: 1.2rem; font-weight: 600; color: #0f172a; }
+  .modal-qr-subtitle { font-size: 0.9rem; color: #64748b; }
+  .modal-qr-close { position: absolute; top: 16px; right: 16px; width: 36px; height: 36px; border: none; background: rgba(255,255,255,0.8); color: #64748b; font-size: 1.5rem; line-height: 1; border-radius: 10px; cursor: pointer; }
+  .modal-qr-close:hover { background: #fff; color: #0f172a; }
+  .modal-qr-body { padding: 24px; }
+  .qr-block { text-align: center; margin-bottom: 24px; }
+  .qr-hint { margin: 0 0 16px 0; font-size: 0.9rem; color: #475569; }
+  .qr-canvas-wrap { display: inline-flex; padding: 16px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .qr-image { display: block; width: 200px; height: 200px; }
+  .btn-copy-qr { margin-top: 12px; padding: 10px 20px; background: #0f172a; color: #fff; border: none; border-radius: 10px; font-size: 0.9rem; font-weight: 500; cursor: pointer; }
+  .btn-copy-qr:hover:not(:disabled) { background: #334155; }
+  .btn-copy-qr:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-copy-qr.copied { background: #16a34a; }
+  .url-block .url-label { margin: 0 0 8px 0; font-size: 0.9rem; color: #475569; }
+  .url-box { display: flex; gap: 10px; margin-bottom: 10px; }
+  .url-input { flex: 1; min-width: 0; padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 0.85rem; background: #f8fafc; }
+  .url-block .btn-copy { padding: 10px 18px; background: #1e90ff; color: #fff; border: none; border-radius: 10px; cursor: pointer; font-weight: 500; flex-shrink: 0; }
+  .url-block .btn-copy:hover { background: #0c7cd5; }
+  .url-block .btn-copy.copied { background: #16a34a; }
+  .url-block .tip { margin: 0; font-size: 0.82rem; color: #64748b; }
+  .modal-qr-footer { padding: 16px 24px; border-top: 1px solid #e2e8f0; text-align: center; }
+  .modal-qr-footer .btn-close { padding: 10px 24px; background: #f1f5f9; border: none; border-radius: 10px; cursor: pointer; font-size: 0.95rem; }
+  .modal-qr-footer .btn-close:hover { background: #e2e8f0; }
   </style>
   
   

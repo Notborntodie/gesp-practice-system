@@ -16,18 +16,22 @@ CREATE TABLE IF NOT EXISTS oj_problems (
   input_format TEXT COMMENT '输入格式说明',
   output_format TEXT COMMENT '输出格式说明',
   data_range TEXT COMMENT '数据范围说明',
+  analysis TEXT COMMENT '题目文字解析说明，用于 Test「我的解析」展示官方解析',
   
   -- 限制条件
   time_limit INT DEFAULT 1000 COMMENT '时间限制（毫秒）',
   memory_limit INT DEFAULT 256 COMMENT '内存限制（MB）',
   
   -- 分类信息
-  level INT NOT NULL COMMENT 'GESP级别 1-6',
+  level INT NOT NULL COMMENT 'GESP级别 1-8',
   publish_date DATE COMMENT '发布日期（年月日）',
   
   -- 统计信息（自动更新）
   total_submissions INT DEFAULT 0 COMMENT '总提交数',
   accepted_submissions INT DEFAULT 0 COMMENT '通过提交数',
+  
+  -- 题库可见（仅影响 level-exams 题库列表，计划与测试仍可使用）
+  bank_visible TINYINT(1) NOT NULL DEFAULT 1 COMMENT '题库可见：1=可见 0=不可见',
   
   -- 时间戳
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -78,10 +82,12 @@ INSERT INTO oj_problems (
   input_format, 
   output_format, 
   data_range,
+  analysis,
   time_limit,
   memory_limit,
   level, 
-  publish_date
+  publish_date,
+  bank_visible
 ) VALUES (
   '数组清零',
   '小A有一个由n个非负整数构成的数组 **a = [a₁,a₂,...,aₙ]**。他会对数组a重复进行以下操作：
@@ -94,10 +100,12 @@ INSERT INTO oj_problems (
 **第二行**：n个非负整数 **a₁, a₂, ..., aₙ**，表示数组a的元素。',
   '**一行**一个正整数，表示a中整数全部变成0所需要的**操作次数**。',
   '对于所有测试点，保证 **1 ≤ n ≤ 100**，**0 ≤ aᵢ ≤ 100**',
+  '本题的总操作次数等于数组中所有元素之和，因为每次操作都会把某个元素减 1，直到全部变为 0。',
   1000,
   256,
   4,
-  '2024-10-15'
+  '2024-10-15',
+  1
 );
 
 -- 获取刚插入的题目ID

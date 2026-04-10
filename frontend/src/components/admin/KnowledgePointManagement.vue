@@ -39,7 +39,9 @@
           <option value="3">GESP 3级</option>
           <option value="4">GESP 4级</option>
           <option value="5">GESP 5级</option>
-          <option value="6">CSP-J</option>
+          <option value="6">GESP 6级</option>
+          <option value="7">GESP 7级</option>
+          <option value="8">GESP 8级</option>
         </select>
       </div>
       <div class="filter-group">
@@ -413,7 +415,6 @@ function getCategoryName(category: string) {
 
 // 等级文本
 function getLevelText(level: number) {
-  if (level === 6) return 'CSP-J'
   return `GESP ${level}级`
 }
 

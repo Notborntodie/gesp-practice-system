@@ -22,23 +22,34 @@
     <div class="filters">
       <div class="filter-group">
         <label>搜索题目：</label>
-            <input 
-              v-model="searchQuery" 
-              type="text" 
-              placeholder="搜索题目内容..." 
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="搜索题目内容..."
           class="filter-input"
             />
           </div>
       <div class="filter-group">
+        <label>题目来源：</label>
+            <select v-model="filterCategory" class="filter-select">
+          <option value="">全部来源</option>
+              <option v-for="t in questionTypeStore.allTypes.value" :key="t.name" :value="t.name">
+                {{ t.display_name || t.name }}
+              </option>
+            </select>
+          </div>
+      <div class="filter-group" v-if="filterCategory === '' || filterCategory === 'GESP'">
         <label>级别筛选：</label>
             <select v-model="filterLevel" class="filter-select">
-          <option value="">全部</option>
+          <option value="">全部级别</option>
               <option value="1">GESP 1级</option>
               <option value="2">GESP 2级</option>
               <option value="3">GESP 3级</option>
               <option value="4">GESP 4级</option>
               <option value="5">GESP 5级</option>
-              <option value="6">CSP-J</option>
+              <option value="6">GESP 6级</option>
+              <option value="7">GESP 7级</option>
+              <option value="8">GESP 8级</option>
             </select>
           </div>
       <div class="filter-group">
@@ -92,6 +103,7 @@
             </th>
             <th>序号</th>
             <th>题目内容</th>
+            <th>分类</th>
             <th>级别</th>
             <th>难度</th>
             <th>类型</th>
@@ -121,7 +133,13 @@
               </div>
             </td>
             <td>
-              <span class="level-badge">{{ getLevelText(q.level || 1) }}</span>
+              <span class="category-badge" :class="`category-${(q.category || 'GESP').toLowerCase()}`">
+                {{ getCategoryText(q.category || 'GESP') }}
+              </span>
+            </td>
+            <td>
+              <span v-if="(q.category || 'GESP') === 'GESP'" class="level-badge">{{ getLevelText(q.level || 1) }}</span>
+              <span v-else class="no-level">-</span>
             </td>
             <td>
               <span class="difficulty-badge" :class="`difficulty-${q.difficulty || 'medium'}`">
@@ -148,9 +166,6 @@
             </td>
             <td @click.stop>
               <div class="action-buttons">
-                <button @click="viewQuestionDetails(q.id)" class="btn-action btn-view" title="查看详情">
-                  <Icon name="eye" :size="18" />
-              </button>
                 <button @click="openEditDialog(q)" class="btn-action btn-edit" title="编辑">
                   <Icon name="edit" :size="18" />
                 </button>
@@ -162,7 +177,7 @@
           </tr>
           <!-- 展开的详细信息行 -->
           <tr v-for="question in filteredQuestions.filter(q => expandedQuestions.includes(q.id))" :key="`detail-${question.id}`" class="detail-row">
-            <td colspan="10">
+            <td colspan="11">
               <div class="question-details">
                 <!-- 预加载题目详情 -->
                 <div v-if="!question.options && !question.explanation" class="loading-details">
@@ -359,6 +374,7 @@ import SuccessMessageDialog from './Dialog/SuccessMessageDialog.vue'
 import CreateExamDialog from './Dialog/CreateExamDialog.vue'
 import BatchEditDialog from './Dialog/BatchEditDialog.vue'
 import { useQuestionStore } from '../../stores/questionStore'
+import { useQuestionTypeStore } from '@/stores/questionTypeStore'
 import Icon from '@/components/Icon.vue'
 
 // Props 定义
@@ -372,9 +388,11 @@ const props = withDefaults(defineProps<Props>(), {
 
 // 使用题目store
 const questionStore = useQuestionStore()
+const questionTypeStore = useQuestionTypeStore()
 
 // 本地状态
 const searchQuery = ref('')
+const filterCategory = ref('')
 const filterLevel = ref('')
 const filterDate = ref('')
 const filterKnowledgePoint = ref('')
@@ -440,8 +458,13 @@ async function fetchKnowledgePoints() {
 // 过滤题目
 const filteredQuestions = computed(() => {
   let list = [...questionStore.questions.value] // 创建副本避免修改原始数据
-  
-  // 按等级过滤
+
+  // 按分类过滤
+  if (filterCategory.value) {
+    list = list.filter(q => (q.category || 'GESP') === filterCategory.value)
+  }
+
+  // 按等级过滤（仅GESP分类有级别）
   if (filterLevel.value) {
     list = list.filter(q => String(q.level || 1) === filterLevel.value)
   }
@@ -479,6 +502,13 @@ const filteredQuestions = computed(() => {
   })
   
   return list
+})
+
+// 分类切换时自动清除级别筛选（非GESP分类没有级别）
+watch(filterCategory, (newVal) => {
+  if (newVal && newVal !== 'GESP') {
+    filterLevel.value = ''
+  }
 })
 
 // 切换题目展开状态
@@ -580,6 +610,12 @@ function closeImageModal() {
 
 
 
+// 分类文本 — 从 question_types 表动态获取
+function getCategoryText(category: string) {
+  const type = questionTypeStore.allTypes.value.find(t => t.name === category)
+  return type?.display_name || category
+}
+
 // 难度文本
 function getDifficultyText(d: string) {
   if (d === 'easy') return '简单'
@@ -589,7 +625,6 @@ function getDifficultyText(d: string) {
 
 // 等级文本
 function getLevelText(level: number) {
-  if (level === 6) return 'CSP-J'
   return `GESP ${level}级`
 }
 
@@ -882,11 +917,6 @@ function getImageCount(question: any): number {
   return count
 }
 
-// 查看题目详情（展开/收起）
-function viewQuestionDetails(questionId: number) {
-  toggleQuestionExpansion(questionId)
-}
-
 // 监听刷新触发器变化
 watch(() => props.refreshTrigger, async (newTrigger, oldTrigger) => {
   // 只有当触发器真正变化且不是初始值时才刷新
@@ -903,7 +933,10 @@ watch(() => props.refreshTrigger, async (newTrigger, oldTrigger) => {
 
 onMounted(async () => {
   console.log('📦 [QuestionList] 组件挂载，初始化数据')
-  
+
+  // 获取题目类型（来源）数据
+  questionTypeStore.fetchQuestionTypes()
+
   // 获取知识点数据
   await fetchKnowledgePoints()
   
@@ -1115,6 +1148,27 @@ onMounted(async () => {
   font-weight: 600;
 }
 
+.category-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.category-gesp { background: #dbeafe; color: #1d4ed8; }
+.category-csp_j { background: #fef3c7; color: #92400e; }
+.category-csp_s { background: #fce7f3; color: #9d174d; }
+.category-noi_p { background: #e0e7ff; color: #3730a3; }
+.category-noi_a { background: #fee2e2; color: #991b1b; }
+.category-noi_ioi { background: #ede9fe; color: #5b21b6; }
+.category-other { background: #f3f4f6; color: #374151; }
+
+.no-level {
+  color: #9ca3af;
+  font-style: italic;
+}
+
 .difficulty-badge {
   display: inline-block;
   padding: 4px 10px;
@@ -1180,16 +1234,6 @@ onMounted(async () => {
   justify-content: center;
   gap: 4px;
   font-size: 14px;
-}
-
-.btn-view {
-  background: #0ea5e9;
-  color: white;
-}
-
-.btn-view:hover {
-  background: #0284c7;
-  transform: translateY(-1px);
 }
 
 .btn-edit {

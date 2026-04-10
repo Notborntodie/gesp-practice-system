@@ -160,7 +160,7 @@ const fetchExams = async () => {
   console.log('开始获取考试列表')
   examsLoading.value = true
   try {
-    const response = await axios.get(`${BASE_URL}/exams`)
+    const response = await axios.get(`${BASE_URL}/exams`, { params: { include_all: 1 } })
     console.log('获取考试列表API响应:', response.data)
     
     // 处理不同的响应格式

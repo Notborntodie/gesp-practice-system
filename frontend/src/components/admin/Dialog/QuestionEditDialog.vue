@@ -14,6 +14,15 @@
               <h5>基本信息</h5>
               <div class="form-row">
                 <div class="form-group">
+                  <label>分类：</label>
+                  <select v-model="editForm.category">
+                    <option value="">请选择分类</option>
+                    <option v-for="type in allQuestionTypes" :key="type.name" :value="type.name">
+                      {{ type.display_name || type.name }}
+                    </option>
+                  </select>
+                </div>
+                <div class="form-group" v-if="editForm.category === 'GESP'">
                   <label>等级：</label>
                   <select v-model="editForm.level" required>
                     <option value="1">GESP 1级</option>
@@ -21,7 +30,9 @@
                     <option value="3">GESP 3级</option>
                     <option value="4">GESP 4级</option>
                     <option value="5">GESP 5级</option>
-                    <option value="6">CSP-J</option>
+                    <option value="6">GESP 6级</option>
+                    <option value="7">GESP 7级</option>
+                    <option value="8">GESP 8级</option>
                   </select>
                 </div>
                 <div class="form-group">
@@ -152,6 +163,10 @@
 
 import { ref, watch, onMounted } from 'vue'
 import axios from 'axios'
+import { useQuestionTypeStore } from '@/stores/questionTypeStore'
+
+const questionTypeStore = useQuestionTypeStore()
+const { allQuestionTypes, fetchQuestionTypes } = questionTypeStore
 
 const props = defineProps<{
   visible: boolean
@@ -172,6 +187,7 @@ const editForm = ref({
   question_code: '',
   correct_answer: '',
   explanation: '',
+  category: 'GESP',
   level: 1,
   difficulty: 'medium',
   question_date: '',
@@ -191,6 +207,7 @@ watch(() => props.question, (newQuestion) => {
       question_code: newQuestion.question_code || '',
       correct_answer: newQuestion.correct_answer || '',
       explanation: newQuestion.explanation || '',
+      category: newQuestion.category || 'GESP',
       level: newQuestion.level || 1,
       difficulty: newQuestion.difficulty || 'medium',
       question_date: newQuestion.question_date || '',
@@ -201,7 +218,7 @@ watch(() => props.question, (newQuestion) => {
         text: opt.text || opt.option_text || ''
       })) : []
     }
-    
+
     console.log('初始化后的表单数据:', editForm.value)
   }
 }, { immediate: true })
@@ -219,6 +236,7 @@ watch(() => props.visible, (isVisible) => {
           question_code: props.question.question_code || '',
           correct_answer: props.question.correct_answer || '',
           explanation: props.question.explanation || '',
+          category: props.question.category || 'GESP',
           level: props.question.level || 1,
           difficulty: props.question.difficulty || 'medium',
           question_date: props.question.question_date || '',
@@ -312,6 +330,7 @@ function handleOverlayClick() {
 
 onMounted(() => {
   fetchKnowledgePoints()
+  fetchQuestionTypes()
 })
 </script>
 

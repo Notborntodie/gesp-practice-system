@@ -3,7 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { pool } = require('../config/database');
+const { pool, getValidCategories } = require('../config/database');
 const { cacheMiddleware, cacheUtils } = require('../config/cache');
 const { logger } = require('../config/logger');
 
@@ -22,20 +22,21 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   limits: {
     fileSize: 5 * 1024 * 1024 // 限制5MB
   },
   fileFilter: function (req, file, cb) {
-    const allowedTypes = /jpeg|jpg|png|gif/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    
+    const allowedExt = /jpeg|jpg|png|gif|webp|bmp|svg/;
+    const extname = allowedExt.test(path.extname(file.originalname).toLowerCase());
+    const allowedMime = /^image\/(jpeg|png|gif|webp|bmp|svg\+xml)$/;
+    const mimetype = allowedMime.test(file.mimetype);
+
     if (mimetype && extname) {
       return cb(null, true);
     } else {
-      cb(new Error('只支持图片文件!'));
+      cb(new Error('不支持的图片格式，仅支持 JPEG/PNG/GIF/WebP/BMP/SVG'));
     }
   }
 });
@@ -137,7 +138,20 @@ router.get('/questions/:questionId', cacheMiddleware(300, 'question'), async (re
 });
 
 // 上传题目图片
-router.post('/upload-image', upload.single('image'), async (req, res) => {
+router.post('/upload-image', (req, res, next) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      if (err.message && err.message.includes('不支持的图片格式')) {
+        return res.status(400).json({ error: err.message });
+      }
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: '图片大小不能超过5MB' });
+      }
+      return res.status(500).json({ error: '图片上传失败: ' + err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: '请选择图片文件' });
@@ -171,7 +185,8 @@ router.post('/upload-question', async (req, res) => {
       question_code = null,
       correct_answer,
       explanation = '',
-      level = 1,
+      level = null,
+      category = 'GESP', // 默认为 GESP
       difficulty = 'medium',
       image_url = null,
       question_date = null,
@@ -180,25 +195,44 @@ router.post('/upload-question', async (req, res) => {
     } = req.body;
 
     if (!question_text || question_text.trim() === '') {
-      return res.status(400).json({ 
-        error: '缺少必需参数', 
+      return res.status(400).json({
+        error: '缺少必需参数',
         required: ['question_text'],
         received: { question_text }
       });
     }
-    
+
+    // 验证 category 参数（如果提供）
+    if (category) {
+      const validCategories = await getValidCategories();
+      if (!validCategories.includes(category)) {
+        return res.status(400).json({
+          error: `category 必须是以下值之一：${validCategories.join(', ')}`,
+          received: category
+        });
+      }
+    }
+
+    // GESP 分类必须有 level
+    if (category === 'GESP' && !level) {
+      return res.status(400).json({
+        error: 'GESP 分类必须指定 level',
+        received: { category, level }
+      });
+    }
+
     const connection = await pool.getConnection();
-    
+
     try {
       await connection.beginTransaction();
-      
+
       // 插入题目
       const [questionResult] = await connection.execute(
-        `INSERT INTO questions (question_text, question_type, 
-         question_code, correct_answer, explanation, level, difficulty, image_url, question_date) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [question_text, question_type || 'text', question_code || null, correct_answer, 
-         explanation || '', level || 1, difficulty || 'medium', image_url || null, question_date]
+        `INSERT INTO questions (question_text, question_type,
+         question_code, correct_answer, explanation, level, category, difficulty, image_url, question_date)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [question_text, question_type || 'text', question_code || null, correct_answer,
+         explanation || '', level || null, category || 'GESP', difficulty || 'medium', image_url || null, question_date]
       );
       
       const questionId = questionResult.insertId;
@@ -295,24 +329,38 @@ router.post('/upload-questions-batch', async (req, res) => {
           question_code = null,
           correct_answer,
           explanation = '',
-          level = 1,
+          level = null,
+          category = 'GESP', // 默认为 GESP
           difficulty = 'medium',
           image_url = null,
           question_date = null,
           knowledge_point_ids = [],
           options = []
         } = questionData;
-        
+
         if (!question_text || question_text.trim() === '') {
           throw new Error(`第${i + 1}题缺少必需参数: question_text=${question_text}`);
         }
-        
+
+        // 验证 category 参数（如果提供）
+        if (category) {
+          const validCategories = await getValidCategories();
+          if (!validCategories.includes(category)) {
+            throw new Error(`第${i + 1}题的category参数无效: ${category}`);
+          }
+        }
+
+        // GESP 分类必须有 level
+        if (category === 'GESP' && !level) {
+          throw new Error(`第${i + 1}题为GESP分类，必须指定level`);
+        }
+
         const [questionResult] = await connection.execute(
-          `INSERT INTO questions (question_text, question_type, question_code, 
-           correct_answer, explanation, level, difficulty, image_url, question_date) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [question_text, question_type, question_code, correct_answer, 
-           explanation, level, difficulty, image_url, question_date]
+          `INSERT INTO questions (question_text, question_type, question_code,
+           correct_answer, explanation, level, category, difficulty, image_url, question_date)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [question_text, question_type, question_code, correct_answer,
+           explanation, level || null, category, difficulty, image_url, question_date]
         );
         const questionId = questionResult.insertId;
         
@@ -373,7 +421,8 @@ router.post('/upload-questions-batch', async (req, res) => {
     }
     
   } catch (error) {
-    logger.error('批量上传题目错误', { error: error.message });
+    console.error('[批量上传] 错误详情:', error.message, error.stack);
+    logger.error('批量上传题目错误', { error: error.message, stack: error.stack });
     res.status(500).json({ 
       error: '批量上传失败',
       details: error.message 
@@ -392,18 +441,30 @@ router.put('/questions/:questionId', async (req, res) => {
       correct_answer,
       explanation,
       level,
+      category,
       difficulty,
       image_url,
       question_date,
       knowledge_point_ids = [],
       options = []
     } = req.body;
-    
+
+    // 验证 category 参数（如果提供）
+    if (category !== undefined) {
+      const validCategories = await getValidCategories();
+      if (!validCategories.includes(category)) {
+        return res.status(400).json({
+          error: `category 必须是以下值之一：${validCategories.join(', ')}`,
+          received: category
+        });
+      }
+    }
+
     const connection = await pool.getConnection();
-    
+
     try {
       await connection.beginTransaction();
-      
+
       // 确保所有参数都有有效值，避免undefined
       const safeParams = [
         question_text || '',
@@ -411,17 +472,18 @@ router.put('/questions/:questionId', async (req, res) => {
         question_code || null,
         correct_answer || '',
         explanation || '',
-        level || 1,
+        level !== undefined ? level : null,
+        category || 'GESP',
         difficulty || 'medium',
         image_url || null,
         question_date || null,
         questionId
       ];
-      
+
       // 更新题目基本信息
       await connection.execute(
-        `UPDATE questions SET question_text = ?, question_type = ?, question_code = ?, correct_answer = ?, 
-         explanation = ?, level = ?, difficulty = ?, image_url = ?, question_date = ? WHERE id = ?`,
+        `UPDATE questions SET question_text = ?, question_type = ?, question_code = ?, correct_answer = ?,
+         explanation = ?, level = ?, category = ?, difficulty = ?, image_url = ?, question_date = ? WHERE id = ?`,
         safeParams
       );
       
@@ -540,7 +602,7 @@ router.put('/questions/batch', async (req, res) => {
             question_code || null,
             correct_answer || '',
             explanation || '',
-            level || 1,
+            level !== undefined ? level : null,
             difficulty || 'medium',
             image_url || null,
             question_date || null,

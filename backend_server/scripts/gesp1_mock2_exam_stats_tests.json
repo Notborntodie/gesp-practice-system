@@ -1,0 +1,82 @@
+[
+  {
+    "input": "5\n59 60 75 89 90",
+    "output": "4 1",
+    "is_hidden": false,
+    "is_displayed": true,
+    "sort_order": 1,
+    "explanation": "样例：合格 3 人（60,75,90），优秀 1 人（90）。"
+  },
+  {
+    "input": "4\n5 12 19 26",
+    "output": "0 0",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 2,
+    "explanation": null
+  },
+  {
+    "input": "5\n60 67 74 81 88",
+    "output": "5 0",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 3,
+    "explanation": null
+  },
+  {
+    "input": "3\n90 93 96",
+    "output": "3 3",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 4,
+    "explanation": null
+  },
+  {
+    "input": "10\n55 60 89 93 55 60 89 92 55 60",
+    "output": "7 2",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 5,
+    "explanation": null
+  },
+  {
+    "input": "6\n0 100 60 90 59 89",
+    "output": "4 2",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 6,
+    "explanation": null
+  },
+  {
+    "input": "7\n60 67 74 81 88 50 59",
+    "output": "5 0",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 7,
+    "explanation": null
+  },
+  {
+    "input": "8\n90 93 96 99 91 60 70 89",
+    "output": "8 5",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 8,
+    "explanation": null
+  },
+  {
+    "input": "1\n75",
+    "output": "1 0",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 9,
+    "explanation": null
+  },
+  {
+    "input": "20\n55 60 89 93 55 60 89 92 55 60 89 91 55 60 89 90 55 60 89 94",
+    "output": "15 5",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 10,
+    "explanation": null
+  }
+]

@@ -167,7 +167,6 @@ const pagination = ref({
 function getLevelText() {
   if (!selectedLevel.value) return '全部等级'
   const level = parseInt(selectedLevel.value)
-  if (level === 6) return 'CSP-J'
   return `GESP ${level}级`
 }
 
@@ -182,6 +181,10 @@ async function fetchProblems() {
     
     if (selectedLevel.value) {
       params.level = selectedLevel.value
+    }
+    // 老师 / 管理员始终能看到全部 OJ 题
+    if (isTeacher.value) {
+      params.include_all = 1
     }
     
     const response = await axios.get(`${BASE_URL}/oj/problems`, { params })
@@ -263,7 +266,7 @@ const viewSubmissions = (problemId: number) => {
   router.push(`/oj-submissions/${problemId}`)
 }
 
-// 检查用户是否为教师
+// 检查用户是否为教师 / 管理员
 const isTeacher = computed(() => {
   try {
     const userInfoStr = localStorage.getItem('userInfo')
@@ -272,8 +275,8 @@ const isTeacher = computed(() => {
     }
     
     const userInfo = JSON.parse(userInfoStr)
-    return userInfo.role_names?.includes('teacher') || 
-           userInfo.roles?.some((role: any) => role.name === 'teacher')
+    const roleNames: string[] = userInfo.role_names || userInfo.roles?.map((r: any) => r.name) || []
+    return roleNames.includes('teacher') || roleNames.includes('admin') || roleNames.includes('super_admin')
   } catch (error) {
     console.error('获取用户信息失败:', error)
     return false

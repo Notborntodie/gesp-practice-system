@@ -65,6 +65,45 @@ const healthCheck = async () => {
   }
 };
 
+// ================================================================
+// 题目类型验证函数
+// ================================================================
+
+/**
+ * 获取所有启用的题目类型名称
+ * @returns {Promise<string[]>} 题目类型名称数组
+ */
+const getValidCategories = async () => {
+  try {
+    const connection = await pool.getConnection();
+    try {
+      const [rows] = await connection.query(`
+        SELECT name
+        FROM question_types
+        WHERE is_active = 1
+        ORDER BY sort_order ASC
+      `);
+      return rows.map(row => row.name);
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('获取题目类型失败:', error);
+    // 如果查询失败（比如表不存在），返回默认值
+    return ['GESP', 'CSP_J', 'CSP_S', 'NOI_P', 'NOI_A', 'NOI_IOI', 'Other'];
+  }
+};
+
+/**
+ * 验证题目类型是否有效
+ * @param {string} category - 题目类型
+ * @returns {Promise<boolean>} 是否有效
+ */
+const isValidCategory = async (category) => {
+  const validCategories = await getValidCategories();
+  return validCategories.includes(category);
+};
+
 // 定期健康检查（每5分钟）
 setInterval(healthCheck, 5 * 60 * 1000);
 
@@ -77,6 +116,8 @@ process.on('SIGINT', async () => {
 
 module.exports = {
   pool,
-  healthCheck
+  healthCheck,
+  getValidCategories,
+  isValidCategory
 };
 

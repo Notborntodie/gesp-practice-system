@@ -68,22 +68,25 @@
       <div class="loading-spinner"></div>
       <span>加载中...</span>
     </div>
-    <iframe 
-      v-else
-      :src="animationUrl" 
-      class="animation-iframe"
-      frameborder="0"
-      allowfullscreen
-      @load="onIframeLoad"
-      @error="onIframeError"
-      :key="animationUrl"
-    ></iframe>
-    <div v-if="loadError" class="error-message">
+    <template v-else>
+      <iframe 
+        v-show="!loadError"
+        :src="animationUrl" 
+        class="animation-iframe"
+        frameborder="0"
+        allowfullscreen
+        @load="onIframeLoad"
+        @error="onIframeError"
+        :key="animationUrl"
+      ></iframe>
+      <div v-if="loadError" class="error-message">
       <Icon name="alert-circle" :size="24" />
       <p>无法加载动画文件</p>
       <p class="error-detail">{{ loadError }}</p>
       <a :href="animationUrl" target="_blank" class="btn-open-direct">直接打开文件</a>
+      <p class="error-tip">若直接打开也失败，可能是动画文件未部署到服务器（animation-*.html 为教师上传，需同步到生产环境）</p>
     </div>
+    </template>
   </div>
 </template>
 
@@ -190,8 +193,9 @@ onMounted(() => {
   }
   
   if (url) {
-    // 确保URL是绝对路径（以/开头）
-    animationUrl.value = url.startsWith('/') ? url : `/${url}`
+    // 确保URL是绝对路径（以/开头），使用完整 URL 确保 iframe 正确加载
+    const path = url.startsWith('/') ? url : `/${url}`
+    animationUrl.value = new URL(path, window.location.origin).href
     console.log('设置动画URL:', animationUrl.value)
   } else if (animationId.value) {
     // 如果没有URL，尝试从ID构建本地路径
@@ -581,6 +585,14 @@ onMounted(() => {
   background: linear-gradient(135deg, #0c7cd5 0%, #1e90ff 100%);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(30, 144, 255, 0.3);
+}
+
+.error-tip {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 12px;
+  max-width: 400px;
+  line-height: 1.5;
 }
 </style>
 

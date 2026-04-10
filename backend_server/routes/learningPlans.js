@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { pool } = require('../config/database');
+const { pool, getValidCategories } = require('../config/database');
 const { logger } = require('../config/logger');
 const { cacheUtils } = require('../config/cache');
 const { submitExamInternal } = require('./submissions');
@@ -38,6 +39,24 @@ const reviewUpload = multer({
     }
   }
 });
+
+function getUserId(req) {
+  const id = req.body?.user_id ?? req.query?.user_id;
+  if (id == null || id === '') return null;
+  const n = parseInt(id, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+async function isAdminOrSuperAdmin(connection, user_id) {
+  if (!user_id) return false;
+  const [rows] = await connection.execute(
+    `SELECT 1 FROM user_roles ur
+     JOIN roles r ON ur.role_id = r.id
+     WHERE ur.user_id = ? AND r.name IN ('admin', 'super_admin')`,
+    [user_id]
+  );
+  return rows.length > 0;
+}
 
 // ==================== 1. 获取我的学习计划列表 ====================
 router.get('/learning-plans/my-plans', async (req, res) => {
@@ -123,6 +142,8 @@ router.get('/learning-plans/all', async (req, res) => {
           lp.is_active,
           lp.created_at,
           lp.updated_at,
+          lp.public_progress_token,
+          lp.public_progress_enabled,
           COUNT(DISTINCT lt.id) as total_tasks,
           COUNT(DISTINCT te.exam_id) as total_exams,
           COUNT(DISTINCT top.problem_id) as total_oj_problems
@@ -149,7 +170,7 @@ router.get('/learning-plans/all', async (req, res) => {
       
       query += `
         GROUP BY lp.id, lp.name, lp.description, lp.level, lp.start_time, lp.end_time, 
-                 lp.is_active, lp.created_at, lp.updated_at
+                 lp.is_active, lp.created_at, lp.updated_at, lp.public_progress_token, lp.public_progress_enabled
         ORDER BY lp.created_at DESC
       `;
       
@@ -458,6 +479,142 @@ router.get('/learning-plans/:id/admin', async (req, res) => {
       error: '获取学习计划完整信息失败',
       message: error.message 
     });
+  }
+});
+
+// ==================== 5.1 开启学习计划公开成长进度（分享链接/二维码） ====================
+router.post('/learning-plans/:id/enable-public-progress', async (req, res) => {
+  try {
+    const planId = parseInt(req.params.id, 10);
+    const user_id = getUserId(req);
+    if (!user_id) return res.status(401).json({ error: '请提供 user_id' });
+    const connection = await pool.getConnection();
+    const allowed = await isAdminOrSuperAdmin(connection, user_id);
+    if (!allowed) {
+      connection.release();
+      return res.status(403).json({ error: '无权操作' });
+    }
+    const [p] = await connection.execute(
+      'SELECT id, public_progress_token, public_progress_enabled FROM learning_plans WHERE id = ?',
+      [planId]
+    );
+    if (p.length === 0) {
+      connection.release();
+      return res.status(404).json({ error: '学习计划不存在' });
+    }
+    let token = p[0].public_progress_token;
+    if (!token) {
+      token = crypto.randomBytes(16).toString('hex');
+      await connection.execute(
+        'UPDATE learning_plans SET public_progress_token = ?, public_progress_enabled = 1 WHERE id = ?',
+        [token, planId]
+      );
+    } else {
+      await connection.execute('UPDATE learning_plans SET public_progress_enabled = 1 WHERE id = ?', [planId]);
+    }
+    connection.release();
+    res.json({ ok: true, public_progress_token: token });
+  } catch (e) {
+    logger.error('POST learning-plans enable-public-progress', { error: e.message });
+    res.status(500).json({ error: '服务器错误' });
+  }
+});
+
+// ==================== 5.2 公开成长进度：config ====================
+router.get('/public-plans/:token/config', async (req, res) => {
+  try {
+    const token = req.params.token;
+    const connection = await pool.getConnection();
+    const [p] = await connection.execute(
+      'SELECT id, name, description, public_progress_enabled FROM learning_plans WHERE public_progress_token = ?',
+      [token]
+    );
+    connection.release();
+    if (p.length === 0) return res.status(404).json({ error: 'INVALID_TOKEN' });
+    const plan = p[0];
+    if (!plan.public_progress_enabled) {
+      return res.json({ allow_query: false, reason: 'NOT_ENABLED' });
+    }
+    return res.json({
+      allow_query: true,
+      plan_name: plan.name,
+      description: plan.description || null
+    });
+  } catch (e) {
+    logger.error('GET public-plans/:token/config', { error: e.message });
+    res.status(500).json({ error: '服务器错误' });
+  }
+});
+
+// ==================== 5.3 公开成长进度：query（按姓名查，重名时优先完成度更高的学员） ====================
+router.post('/public-plans/:token/query', async (req, res) => {
+  try {
+    const token = req.params.token;
+    const { name } = req.body || {};
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: '请提供姓名', found: false });
+    }
+    const trimName = name.trim();
+    const connection = await pool.getConnection();
+    const [p] = await connection.execute(
+      'SELECT id, name, public_progress_enabled FROM learning_plans WHERE public_progress_token = ?',
+      [token]
+    );
+    if (p.length === 0) {
+      connection.release();
+      return res.status(404).json({ error: 'INVALID_TOKEN' });
+    }
+    const plan = p[0];
+    if (!plan.public_progress_enabled) {
+      connection.release();
+      return res.status(403).json({ allow_query: false });
+    }
+    const planId = plan.id;
+    // 姓名同时按 real_name 与 username 匹配，多命中时按完成度优先再 real_name 优先
+    const userSql = `
+      SELECT u.id, u.real_name,
+        (SELECT COUNT(DISTINCT CASE WHEN utp.is_completed = 1 THEN utp.task_id END)
+         FROM user_learning_plans ulp
+         JOIN learning_tasks lt ON lt.plan_id = ulp.plan_id
+         LEFT JOIN user_task_progress utp ON utp.task_id = lt.id AND utp.user_id = ulp.user_id
+         WHERE ulp.user_id = u.id AND ulp.plan_id = ?) as completed_tasks
+      FROM users u
+      WHERE (TRIM(u.real_name) = ? OR u.username = ?)
+        AND EXISTS (SELECT 1 FROM user_learning_plans ulp2 WHERE ulp2.user_id = u.id AND ulp2.plan_id = ?)
+    `;
+    const userParams = [planId, trimName, trimName, planId];
+    const [users] = await connection.execute(userSql, userParams);
+    if (users.length === 0) {
+      connection.release();
+      return res.json({ found: false });
+    }
+    users.sort((a, b) => (Number(b.completed_tasks) || 0) - (Number(a.completed_tasks) || 0));
+    const user = users[0];
+    const [progressRows] = await connection.execute(
+      `SELECT COUNT(DISTINCT lt.id) as total_tasks,
+        COUNT(DISTINCT CASE WHEN utp.is_completed = 1 THEN utp.task_id END) as completed_tasks
+       FROM user_learning_plans ulp
+       JOIN learning_tasks lt ON lt.plan_id = ulp.plan_id
+       LEFT JOIN user_task_progress utp ON utp.task_id = lt.id AND utp.user_id = ulp.user_id
+       WHERE ulp.user_id = ? AND ulp.plan_id = ?`,
+      [user.id, planId]
+    );
+    const row = progressRows[0];
+    const total_tasks = Number(row.total_tasks) || 0;
+    const completed_tasks = Number(row.completed_tasks) || 0;
+    const progress = total_tasks > 0 ? Math.round((completed_tasks * 100) / total_tasks) : 0;
+    connection.release();
+    res.json({
+      found: true,
+      name: user.real_name || user.username,
+      plan_name: plan.name,
+      completed_tasks,
+      total_tasks,
+      progress
+    });
+  } catch (e) {
+    logger.error('POST public-plans/:token/query', { error: e.message });
+    res.status(500).json({ error: '服务器错误' });
   }
 });
 
@@ -791,30 +948,42 @@ router.post('/learning-tasks/:taskId/complete', async (req, res) => {
 // ==================== 9. 创建学习计划（整体含任务和练习） ====================
 router.post('/learning-plans', async (req, res) => {
   try {
-    const { name, description, level, start_time, end_time, tasks } = req.body;
-    
+    const { name, description, level, category = 'GESP', start_time, end_time, tasks } = req.body;
+
     // 验证必需参数
     if (!name) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
         error: '缺少必需参数: name'
       });
     }
-    
+
+    // 验证 category 参数（如果提供）
+    if (category) {
+      const validCategories = await getValidCategories();
+      if (!validCategories.includes(category)) {
+        return res.status(400).json({
+          success: false,
+          error: `category 必须是以下值之一：${validCategories.join(', ')}`
+        });
+      }
+    }
+
     const connection = await pool.getConnection();
-    
+
     try {
       await connection.beginTransaction();
-      
+
       // 1. 创建学习计划
       const [planResult] = await connection.execute(`
-        INSERT INTO learning_plans (name, description, level, start_time, end_time, is_active)
-        VALUES (?, ?, ?, ?, ?, 1)
+        INSERT INTO learning_plans (name, description, level, category, start_time, end_time, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, 1)
       `, [
-        name, 
-        description || null, 
-        level || null, 
-        start_time || null, 
+        name,
+        description || null,
+        level || null,
+        category || 'GESP',
+        start_time || null,
         end_time || null
       ]);
       
@@ -927,32 +1096,43 @@ router.post('/learning-plans', async (req, res) => {
 router.put('/learning-plans/:planId', async (req, res) => {
   try {
     const { planId } = req.params;
-    const { name, description, level, start_time, end_time, is_active, tasks } = req.body;
-    
+    const { name, description, level, category, start_time, end_time, is_active, tasks } = req.body;
+
+    // 验证 category 参数（如果提供）
+    if (category !== undefined) {
+      const validCategories = await getValidCategories();
+      if (!validCategories.includes(category)) {
+        return res.status(400).json({
+          success: false,
+          error: `category 必须是以下值之一：${validCategories.join(', ')}`
+        });
+      }
+    }
+
     const connection = await pool.getConnection();
-    
+
     try {
       await connection.beginTransaction();
-      
+
       // 1. 检查学习计划是否存在
       const [existingPlan] = await connection.execute(
         'SELECT * FROM learning_plans WHERE id = ?',
         [planId]
       );
-      
+
       if (existingPlan.length === 0) {
         await connection.rollback();
         connection.release();
-        return res.status(404).json({ 
+        return res.status(404).json({
           success: false,
-          error: '学习计划不存在' 
+          error: '学习计划不存在'
         });
       }
-      
+
       // 2. 更新学习计划基本信息
       const updates = [];
       const params = [];
-      
+
       if (name !== undefined) {
         updates.push('name = ?');
         params.push(name);
@@ -964,6 +1144,10 @@ router.put('/learning-plans/:planId', async (req, res) => {
       if (level !== undefined) {
         updates.push('level = ?');
         params.push(level);
+      }
+      if (category !== undefined) {
+        updates.push('category = ?');
+        params.push(category);
       }
       if (start_time !== undefined) {
         updates.push('start_time = ?');
@@ -977,11 +1161,11 @@ router.put('/learning-plans/:planId', async (req, res) => {
         updates.push('is_active = ?');
         params.push(is_active);
       }
-      
+
       if (updates.length > 0) {
         params.push(planId);
         await connection.execute(`
-          UPDATE learning_plans 
+          UPDATE learning_plans
           SET ${updates.join(', ')}, updated_at = NOW()
           WHERE id = ?
         `, params);
@@ -3328,6 +3512,68 @@ router.post('/learning-tasks/upload-review-pdf', reviewUpload.single('file'), as
     res.status(500).json({
       success: false,
       error: '上传失败',
+      message: error.message
+    });
+  }
+});
+
+// ==================== 获取单个学习计划详情 ====================
+router.get('/learning-plans/:planId', async (req, res) => {
+  try {
+    const { planId } = req.params;
+    
+    const connection = await pool.getConnection();
+    
+    try {
+      // 获取计划基本信息
+      const [planRows] = await connection.execute(
+        'SELECT * FROM learning_plans WHERE id = ?',
+        [planId]
+      );
+      
+      if (planRows.length === 0) {
+        connection.release();
+        return res.status(404).json({
+          success: false,
+          error: '学习计划不存在'
+        });
+      }
+      
+      const plan = planRows[0];
+      
+      // 获取计划的任务统计
+      const [taskStats] = await connection.execute(`
+        SELECT 
+          COUNT(DISTINCT lt.id) as total_tasks,
+          COUNT(DISTINCT te.exam_id) as total_exams,
+          COUNT(DISTINCT top.problem_id) as total_oj_problems
+        FROM learning_plans lp
+        LEFT JOIN learning_tasks lt ON lp.id = lt.plan_id
+        LEFT JOIN task_exams te ON lt.id = te.task_id
+        LEFT JOIN task_oj_problems top ON lt.id = top.task_id
+        WHERE lp.id = ?
+      `, [planId]);
+      
+      connection.release();
+      
+      res.json({
+        success: true,
+        data: {
+          ...plan,
+          ...taskStats[0]
+        }
+      });
+      
+    } catch (error) {
+      connection.release();
+      throw error;
+    }
+    
+  } catch (error) {
+    logger.error('获取学习计划详情失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '获取学习计划详情失败',
       message: error.message
     });
   }

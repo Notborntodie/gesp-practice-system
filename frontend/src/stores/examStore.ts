@@ -37,13 +37,13 @@ export const useExamStore = () => {
     loading.value = true
     try {
       console.log('开始获取考试列表...')
-      const response = await axios.get(`${BASE_URL}/exams`)
-      
+      const response = await axios.get(`${BASE_URL}/exams`, { params: { include_all: 1 } })
+
       // 只获取基本信息，不获取详情（按需加载）
       exams.value = response.data
       lastFetchTime.value = Date.now()
       isInitialized.value = true
-      
+
       console.log('考试列表获取完成，共', exams.value.length, '个考试')
       return exams.value
     } catch (error: any) {
@@ -58,8 +58,8 @@ export const useExamStore = () => {
   const refreshInBackground = async () => {
     try {
       console.log('开始后台刷新考试数据...')
-      const response = await axios.get(`${BASE_URL}/exams`)
-      
+      const response = await axios.get(`${BASE_URL}/exams`, { params: { include_all: 1 } })
+
       // 只获取基本信息，不获取详情（按需加载）
       exams.value = response.data
       lastFetchTime.value = Date.now()
@@ -69,19 +69,27 @@ export const useExamStore = () => {
     }
   }
 
-  // 预加载考试详情（用于用户点击查看详情时）
-  const preloadExamDetails = async (examId: number) => {
+  // 预加载考试详情（用于用户点击查看详情时）；force=true 时总是重新拉取并更新缓存
+  const preloadExamDetails = async (examId: number, force = false) => {
     const exam = exams.value.find(e => e.id === examId)
-    if (exam && !exam.questions) {
-      try {
-        const detailResponse = await axios.get(`${BASE_URL}/exams/${examId}`)
-        updateExam(examId, {
-          ...exam,
-          questions: detailResponse.data.questions || []
-        })
-      } catch (error: any) {
-        console.warn(`预加载考试 ${examId} 详情失败:`, error)
-      }
+    if (!force && exam && exam.questions) {
+      return
+    }
+    try {
+      const detailResponse = await axios.get(`${BASE_URL}/exams/${examId}`)
+      const data = detailResponse.data
+      const questions = data.questions || []
+      const n = questions.length
+      const base = exam || { id: examId }
+      updateExam(examId, {
+        ...base,
+        ...data,
+        questions,
+        question_count: n,
+        total_questions: n
+      })
+    } catch (error: any) {
+      console.warn(`预加载考试 ${examId} 详情失败:`, error)
     }
   }
 
@@ -160,16 +168,12 @@ export const useExamStore = () => {
     }
   }
 
-  // 更新考试
+  // 更新考试（PUT 仅返回 message，成功后强制拉详情并同步列表中的题量字段）
   const updateExamData = async (examId: number, examData: any) => {
     try {
       const response = await axios.put(`${BASE_URL}/exams/${examId}`, examData)
-      const updatedExam = response.data
-      
-      // 更新缓存
-      updateExam(examId, updatedExam)
-      
-      return updatedExam
+      await preloadExamDetails(examId, true)
+      return response.data
     } catch (error: any) {
       console.error('更新考试失败:', error)
       throw error

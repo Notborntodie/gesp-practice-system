@@ -9,7 +9,8 @@ const securityMiddleware = {
       directives: {
         defaultSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'"],
+        // Vue开发模式需要 unsafe-eval，始终允许
+        scriptSrc: ["'self'", "'unsafe-eval'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "https:"],
         connectSrc: ["'self'"],
         fontSrc: ["'self'"],

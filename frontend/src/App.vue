@@ -1,6 +1,22 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
+import { watch } from 'vue'
+import { RouterLink, RouterView, useRoute } from 'vue-router'
 import NavBar from './components/NavBar.vue'
+
+const route = useRoute()
+
+// 动画页面、公开查分/计划进度页在 #app 上添加标记，用于禁用双栏布局并保证窄屏正常
+watch(
+  () => route.path,
+  (path) => {
+    const appEl = document.getElementById('app')
+    if (appEl) {
+      appEl.classList.toggle('animation-page', path.startsWith('/animation/'))
+      appEl.classList.toggle('public-query-page', path.startsWith('/public-tests/') || path.startsWith('/public-plans/'))
+    }
+  },
+  { immediate: true }
+)
 </script>
 
 <template>

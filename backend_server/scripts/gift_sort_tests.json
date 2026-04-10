@@ -1,0 +1,82 @@
+[
+  {
+    "input": "3 3\n10 20 30\n15 25 35\n10 20 30",
+    "output": "1 3 2",
+    "is_hidden": false,
+    "is_displayed": true,
+    "sort_order": 1,
+    "explanation": "题面样例：礼盒1与3 总价、最大、最小均相同，按输入顺序 1 在 3 前；礼盒2 总价最大排最后，故输出 1 3 2。"
+  },
+  {
+    "input": "1 2\n5 10",
+    "output": "1",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 2,
+    "explanation": null
+  },
+  {
+    "input": "2 2\n1 2\n3 4",
+    "output": "1 2",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 3,
+    "explanation": null
+  },
+  {
+    "input": "2 2\n1 9\n5 5",
+    "output": "2 1",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 4,
+    "explanation": null
+  },
+  {
+    "input": "4 2\n1 1\n2 2\n1 2\n2 1",
+    "output": "1 3 4 2",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 5,
+    "explanation": null
+  },
+  {
+    "input": "4 6\n47 93 39 85 31 77\n23 69 15 61 7 53\n99 45 91 37 83 29\n75 21 67 13 59 5",
+    "output": "2 4 1 3",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 6,
+    "explanation": null
+  },
+  {
+    "input": "9 6\n22 43 64 85 6 27\n48 69 90 11 32 53\n74 95 16 37 58 79\n100 21 42 63 84 5\n26 47 68 89 10 31\n52 73 94 15 36 57\n78 99 20 41 62 83\n4 25 46 67 88 9\n30 51 72 93 14 35",
+    "output": "8 1 5 9 2 4 6 3 7",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 7,
+    "explanation": null
+  },
+  {
+    "input": "11 5\n88 75 62 49 36\n23 10 97 84 71\n58 45 32 19 6\n93 80 67 54 41\n28 15 2 89 76\n63 50 37 24 11\n98 85 72 59 46\n33 20 7 94 81\n68 55 42 29 16\n3 90 77 64 51\n38 25 12 99 86",
+    "output": "3 6 9 5 8 11 10 2 1 4 7",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 8,
+    "explanation": null
+  },
+  {
+    "input": "7 2\n66 31\n96 61\n26 91\n56 21\n86 51\n16 81\n46 11",
+    "output": "7 4 1 6 3 5 2",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 9,
+    "explanation": null
+  },
+  {
+    "input": "3 4\n4 7 10 13\n16 19 22 25\n28 31 34 37",
+    "output": "1 2 3",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 10,
+    "explanation": null
+  }
+]

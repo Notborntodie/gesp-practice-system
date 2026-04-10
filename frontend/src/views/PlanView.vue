@@ -27,34 +27,7 @@
           <div class="question-content-unified">
             <div class="question-left-panel question-left-panel-centered" style="width: 100%;">
               
-              <!-- 侧边栏视图：易错题级别列表 -->
-              <div v-if="sidebarView === 'wrong-questions'" class="wrong-questions-level-view">
-                <div class="content-section">
-                  <div class="section-header">
-                    <h4 class="section-title"><Icon name="alert-triangle" :size="18" /> GESP 易错题</h4>
-                  </div>
-                  <div class="section-content">
-                    <p class="wrong-questions-intro">查看各级易错客观题，针对性提升薄弱环节</p>
-                    <div class="level-buttons-grid">
-                      <button 
-                        v-for="level in [1, 2, 3, 4]" 
-                        :key="level"
-                        class="level-button"
-                        @click="goToWrongQuestions(level)"
-                      >
-                        <div class="level-button-icon">⚠️</div>
-                        <div class="level-button-content">
-                          <div class="level-button-title">GESP {{ level }}级</div>
-                          <div class="level-button-desc">易错题TOP50</div>
-                        </div>
-                        <Icon name="arrow-right" :size="20" class="level-button-arrow" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 侧边栏视图：世界排名 -->
+              <!-- 侧边栏视图：计划排名 -->
               <div v-if="sidebarView === 'global-ranking'" class="global-ranking-view">
                 <!-- 错误状态 -->
                 <div v-if="globalRankingError" class="content-section error-state">
@@ -73,7 +46,7 @@
                   <div class="section-content">
                     <div class="loading-icon"><Icon name="loader-2" :size="80" spin /></div>
                     <h3>加载中...</h3>
-                    <p>正在获取世界排名数据</p>
+                    <p>正在获取计划排名数据</p>
                   </div>
                 </div>
                 
@@ -89,7 +62,7 @@
                 <!-- 所有计划列表 -->
                 <div v-else class="content-section">
                   <div class="section-header">
-                    <h4 class="section-title"><Icon name="trophy" :size="18" /> 世界排名计划列表</h4>
+                    <h4 class="section-title"><Icon name="trophy" :size="18" /> 计划排名列表</h4>
                   </div>
                   <div class="section-content">
                     <div class="global-ranking-plans-list">
@@ -149,6 +122,81 @@
                 </div>
               </div>
 
+              <!-- 侧边栏视图：我的提交 -->
+              <div v-if="sidebarView === 'my-submissions'" class="my-submissions-view-wrap">
+                <MySubmissionsSection />
+              </div>
+              <!-- 侧边栏视图：学生提交（仅教师可见，展示绑定学生的编程题与客观题提交） -->
+              <div v-if="sidebarView === 'student-submissions'" class="my-submissions-view-wrap">
+                <MySubmissionsSection mode="students" :teacher-id="userInfo?.id ?? 0" />
+              </div>
+
+              <!-- 侧边栏视图：我的测试 -->
+              <div v-if="sidebarView === 'my-tests'" class="my-tests-view">
+                <div v-if="testsLoading" class="content-section loading-state">
+                  <div class="section-content">
+                    <div class="loading-icon"><Icon name="loader-2" :size="80" spin /></div>
+                    <h3>加载中...</h3>
+                  </div>
+                </div>
+                <div v-else-if="testsList.length === 0" class="content-section empty-state">
+                  <div class="section-content">
+                    <div class="empty-icon"><Icon name="clipboard-list" :size="80" /></div>
+                    <h3>暂无测试</h3>
+                    <p>当前没有可参加的测试</p>
+                  </div>
+                </div>
+                <div v-else class="content-section">
+                  <div class="section-header">
+                    <h4 class="section-title"><Icon name="clipboard-list" :size="18" /> 可参加的测试</h4>
+                  </div>
+                  <div class="section-content">
+                    <div class="tests-list">
+                      <div 
+                        v-for="t in testsList" 
+                        :key="t.id"
+                        class="test-card"
+                      >
+                        <div class="test-card-header">
+                          <h4>{{ t.name }}</h4>
+                          <span v-if="t.submitted_at" class="test-status submitted">已交卷</span>
+                          <span v-else-if="t.has_attempt" class="test-status in-progress">进行中</span>
+                          <span v-else class="test-status not-started">未开始</span>
+                        </div>
+                        <p v-if="t.description" class="test-card-desc">{{ t.description }}</p>
+                        <div class="test-card-meta">
+                          <span>限时 {{ t.time_limit_minutes }} 分钟</span>
+                          <span v-if="t.total_score">满分 {{ t.total_score }}</span>
+                        </div>
+                        <div class="test-card-actions">
+                          <button 
+                            v-if="!t.has_attempt" 
+                            class="test-btn primary" 
+                            @click="goToTest(t.id, 'start')"
+                          >
+                            开始考试
+                          </button>
+                          <button 
+                            v-else-if="!t.submitted_at" 
+                            class="test-btn primary" 
+                            @click="goToTest(t.id, 'continue')"
+                          >
+                            继续考试
+                          </button>
+                          <button 
+                            v-else 
+                            class="test-btn secondary" 
+                            @click="goToTest(t.id, 'result')"
+                          >
+                            查看结果
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- 侧边栏视图：我的计划 -->
               <div v-if="sidebarView === 'my-plans'">
                 <!-- GESP考级备考阶段横幅（计划页顶部） -->
@@ -189,13 +237,22 @@
                 <div class="section-content">
                     <div class="empty-icon"><Icon name="book-open" :size="80" /></div>
                     <h3>暂无学习计划</h3>
-                    <p v-if="isTeacherOrAdmin">点击右下角"加入计划"按钮开始你的学习之旅</p>
+                    <p v-if="isTeacherOrAdmin">加入计划开始你的学习之旅</p>
                     <p v-else>请联系老师加入学习计划</p>
+                    <button v-if="isTeacherOrAdmin" class="join-plan-btn-inline" @click="showJoinDialog = true">
+                      <Icon name="plus" :size="20" /> 加入计划
+                    </button>
                   </div>
                   </div>
-                  
-                <!-- 我的计划列表 -->
-                <div v-else class="my-plans-grid">
+
+                <!-- 我的计划列表（含顶部加入计划按钮） -->
+                <div v-else class="my-plans-with-header">
+                  <div v-if="isTeacherOrAdmin" class="my-plans-header-actions">
+                    <button class="join-plan-btn-inline" @click="showJoinDialog = true">
+                      <Icon name="plus" :size="18" /> 加入计划
+                    </button>
+                  </div>
+                <div class="my-plans-grid">
                     <div 
                     v-for="plan in myPlans" 
                       :key="plan.id"
@@ -230,6 +287,7 @@
                     </button>
                   </div>
                   </div>
+                </div>
                 </div>
               </div>
 
@@ -426,41 +484,53 @@
       <div class="sidebar-placeholder-right"></div>
     </div>
 
-    <!-- 右侧固定边栏导航 -->
+    <!-- 右侧固定边栏：我的计划 → 我的测试 → 计划排名 → 我的提交 → 倒计时（最底） -->
     <div class="sidebar-right-fixed">
       <div class="sidebar-nav">
         <button 
           class="sidebar-nav-item sidebar-nav-item-my-plans" 
           :class="{ active: sidebarView === 'my-plans' }"
-          @click="sidebarView = 'my-plans'"
+          @click="router.push('/plan')"
         >
           <Icon name="book-open" :size="32" />
           <span>我的计划</span>
         </button>
         <button 
-          class="sidebar-nav-item sidebar-nav-item-ranking" 
-          :class="{ active: sidebarView === 'global-ranking' }"
-          @click="sidebarView = 'global-ranking'"
+          class="sidebar-nav-item sidebar-nav-item-tests" 
+          :class="{ active: sidebarView === 'my-tests' }"
+          @click="router.push('/plan/tests')"
         >
-          <Icon name="trophy" :size="32" />
-          <span>世界排名</span>
+          <Icon name="clipboard-list" :size="32" />
+          <span>我的测试</span>
+          <span class="sidebar-nav-new-badge">上新</span>
         </button>
         <button 
-          class="sidebar-nav-item sidebar-nav-item-wrong-questions" 
-          :class="{ active: sidebarView === 'wrong-questions' }"
-          @click="sidebarView = 'wrong-questions'"
+          class="sidebar-nav-item sidebar-nav-item-ranking" 
+          :class="{ active: sidebarView === 'global-ranking' }"
+          @click="router.push('/plan/ranking')"
         >
-          <Icon name="alert-triangle" :size="32" />
-          <span>易错题</span>
+          <Icon name="trophy" :size="32" />
+          <span>计划排名</span>
+        </button>
+        <button 
+          class="sidebar-nav-item sidebar-nav-item-submissions" 
+          :class="{ active: sidebarView === 'my-submissions' }"
+          @click="router.push('/plan/submissions')"
+        >
+          <Icon name="file-text" :size="32" />
+          <span>我的提交</span>
+          <span class="sidebar-nav-new-badge">上新</span>
+        </button>
+        <button 
+          v-if="isTeacherOrAdmin"
+          class="sidebar-nav-item sidebar-nav-item-submissions" 
+          :class="{ active: sidebarView === 'student-submissions' }"
+          @click="router.push({ path: '/plan/submissions', query: { view: 'students' } })"
+        >
+          <Icon name="users" :size="32" />
+          <span>学生提交</span>
         </button>
       </div>
-    </div>
-
-    <!-- 加入计划按钮（仅在"我的计划"视图显示） -->
-    <div v-if="sidebarView === 'my-plans' && currentView === 'plans'" class="join-plan-fab">
-      <button v-if="isTeacherOrAdmin" class="join-plan-btn-premium" @click="showJoinDialog = true">
-        <Icon name="plus" :size="20" /> 加入计划
-      </button>
     </div>
 
     <!-- 排名弹窗 -->
@@ -468,7 +538,7 @@
       <div class="modal-content ranking-modal" @click.stop>
         <div class="modal-header ranking-modal-header">
           <div class="modal-header-left">
-            <h3>{{ isGlobalRanking ? '世界排名' : '班级排名' }}</h3>
+            <h3>{{ isGlobalRanking ? '计划排名' : '班级排名' }}</h3>
             <!-- 老师信息（仅班级排名显示） -->
             <div v-if="rankingData && !isGlobalRanking && rankingData.teacher" class="ranking-teacher-info-header">
               <Icon name="user" :size="14" />
@@ -660,7 +730,7 @@
             <div class="level-label">选择GESP级别:</div>
             <div class="level-buttons">
               <button 
-                v-for="level in [1, 2, 3, 4]" 
+                v-for="level in [1, 2, 3, 4, 5, 6, 7, 8]" 
                 :key="level"
                 class="level-btn"
                 :class="{ active: joinDialogLevel === level }"
@@ -708,17 +778,40 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import Icon from '@/components/Icon.vue'
+import MySubmissionsSection from '@/components/plan/MySubmissionsSection.vue'
 
 const router = useRouter()
+const route = useRoute()
 
 import { BASE_URL } from '@/config/api'
 
+// 根据路由 path 与 query 得到右侧栏视图（学生提交仅教师可见）
+function planSectionFromPath (path: string, queryView?: string, teacherOrAdmin?: boolean): 'my-plans' | 'global-ranking' | 'my-submissions' | 'my-tests' | 'student-submissions' {
+  if (path === '/plan/ranking') return 'global-ranking'
+  if (path === '/plan/tests') return 'my-tests'
+  if (path === '/plan/submissions') {
+    if (queryView === 'students' && teacherOrAdmin) return 'student-submissions'
+    return 'my-submissions'
+  }
+  return 'my-plans'
+}
+
+// 用户信息（sidebarView 依赖 isTeacherOrAdmin，isTeacherOrAdmin 依赖 userInfo，故 userInfo 与 isTeacherOrAdmin 需在 sidebarView 前定义）
+const userInfo = ref<any>(null)
+const isTeacherOrAdmin = computed(() => {
+  if (!userInfo.value) return false
+  return userInfo.value.role_names?.includes('teacher') ||
+         userInfo.value.role_names?.includes('admin') ||
+         userInfo.value.roles?.some((role: any) => role.name === 'teacher' || role.name === 'admin')
+})
+
+const sidebarView = computed(() => planSectionFromPath(route.path, route.query.view as string | undefined, isTeacherOrAdmin.value))
+
 // 当前视图: 'plans' | 'tasks' | 'exercises'
 const currentView = ref('plans')
-const sidebarView = ref<'my-plans' | 'global-ranking' | 'wrong-questions'>('my-plans')
 const selectedLevel = ref<number | null>(null)
 const selectedPlan = ref<any>(null)
 const selectedTask = ref<any>(null)
@@ -739,7 +832,7 @@ const rankingSearchKeyword = ref('') // 排名搜索关键词
 const showOnlyMyStudents = ref(false) // 是否只显示我的学生（教师功能）
 const myStudentIds = ref<number[]>([]) // 当前教师的学生ID列表
 
-// 世界排名相关
+// 计划排名相关
 const allPlansForRanking = ref<any[]>([])
 const globalRankingLoading = ref(false)
 const globalRankingError = ref<string | null>(null)
@@ -749,22 +842,15 @@ const planRankingsCache = ref<Map<number, any>>(new Map()) // 缓存计划的排
 const loading = ref(false)
 const error = ref<string | null>(null)
 
-// 用户信息
-const userInfo = ref<any>(null)
-
 // 我的学习计划列表
 const myPlans = ref<any[]>([])
 
+// 我的测试列表
+const testsList = ref<any[]>([])
+const testsLoading = ref(false)
+
 // 所有可用计划（用于加入计划弹窗）
 const allAvailablePlans = ref<any[]>([])
-
-// 判断是否为教师或管理员
-const isTeacherOrAdmin = computed(() => {
-  if (!userInfo.value) return false
-  return userInfo.value.role_names?.includes('teacher') || 
-         userInfo.value.role_names?.includes('admin') ||
-         userInfo.value.roles?.some((role: any) => role.name === 'teacher' || role.name === 'admin')
-})
 
 // API调用方法
 const fetchMyPlans = async () => {
@@ -964,17 +1050,17 @@ const fetchGlobalRanking = async (planId: number) => {
   try {
     const response = await fetch(`${BASE_URL}/learning-plans/${planId}/global-ranking?user_id=${userInfo.value.id}`)
     if (!response.ok) {
-      throw new Error(`获取世界排名失败: ${response.status}`)
+      throw new Error(`获取计划排名失败: ${response.status}`)
     }
     const result = await response.json()
     if (result.success) {
       return result.data
     } else {
-      throw new Error(result.message || '获取世界排名失败')
+      throw new Error(result.message || '获取计划排名失败')
     }
   } catch (err) {
-    console.error('获取世界排名失败:', err)
-    rankingError.value = err instanceof Error ? err.message : '获取世界排名失败'
+    console.error('获取计划排名失败:', err)
+    rankingError.value = err instanceof Error ? err.message : '获取计划排名失败'
     return null
   }
 }
@@ -998,7 +1084,7 @@ const fetchAllPlans = async () => {
     
     // 2. 并行获取所有级别的所有计划（使用 all API 而不是 available API）
     // 优化：改为并行请求，减少总等待时间
-    const levelPromises = [1, 2, 3, 4].map(async (level) => {
+    const levelPromises = [1, 2, 3, 4, 5, 6, 7, 8].map(async (level) => {
       try {
         const response = await fetch(`${BASE_URL}/learning-plans/all?level=${level}&is_active=1`)
         if (!response.ok) {
@@ -1459,11 +1545,6 @@ const backToTasks = () => {
   selectedTask.value = null
 }
 
-// 跳转到易错题页面
-const goToWrongQuestions = (level: number) => {
-  router.push(`/top-wrong-questions/${level}`)
-}
-
 // 开始客观题练习
 const startExam = (exam: any) => {
   console.log('开始客观题练习:', exam)
@@ -1527,24 +1608,44 @@ watch(showJoinDialog, async (show) => {
   }
 })
 
-// 监听侧边栏视图切换
-watch(sidebarView, async (newView) => {
+// 拉取测试列表（需在下方 watch(route.path, { immediate: true }) 之前定义，否则 immediate 回调会报 “before initialization”）
+const fetchTestsList = async () => {
+  if (!userInfo.value?.id) return
+  testsLoading.value = true
+  try {
+    const res = await fetch(`${BASE_URL}/tests?user_id=${userInfo.value.id}`)
+    const data = await res.json()
+    testsList.value = data.list ?? []
+  } catch (e) {
+    console.error('获取测试列表失败', e)
+    testsList.value = []
+  } finally {
+    testsLoading.value = false
+  }
+}
+
+const goToTest = (testId: number, _mode: 'start' | 'continue' | 'result') => {
+  router.push(`/tests/${testId}`)
+}
+
+// 监听路由变化（侧栏对应独立路由），切换时拉取数据或重置状态
+watch(() => route.path, async (path) => {
+  const newView = planSectionFromPath(path)
   if (newView === 'global-ranking') {
-    // 切换到世界排名视图时，获取所有计划
-    // 确保先获取我的计划，以便在 fetchAllPlans 中使用
     if (myPlans.value.length === 0) {
       await fetchMyPlans()
     }
     await fetchAllPlans()
   } else if (newView === 'my-plans') {
-    // 切换到我的计划视图时，重置当前视图为计划列表
     if (currentView.value !== 'plans') {
       currentView.value = 'plans'
       selectedPlan.value = null
       selectedTask.value = null
     }
+  } else if (newView === 'my-tests') {
+    fetchTestsList()
   }
-})
+}, { immediate: true })
 
 // 测试API连接
 const testAPIConnection = async () => {
@@ -1584,9 +1685,14 @@ onMounted(async () => {
     
     // 加载我的学习计划
     await fetchMyPlans()
+    // 若当前在「可参加的测试」页，此时 userInfo 已有值，补拉测试列表（否则 watch immediate 时 userInfo 尚未注入会显示暂无测试）
+    if (route.path === '/plan/tests') {
+      fetchTestsList()
+    }
   } else {
     error.value = '请先登录'
   }
+  
 })
 </script>
 
@@ -1617,19 +1723,39 @@ onMounted(async () => {
   margin-top: 0;
 }
 
-/* 加入计划悬浮按钮 */
-.join-plan-fab {
-  position: fixed;
-  bottom: 32px;
-  right: 32px;
-  z-index: 999;
+/* 我的计划页内「加入计划」按钮（原右下角 FAB 已移入此视图） */
+.my-plans-with-header {
+  width: 100%;
+}
+.my-plans-header-actions {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+.join-plan-btn-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 2px solid rgba(30, 144, 255, 0.5);
+  background: linear-gradient(135deg, #1e90ff 0%, #38bdf8 100%);
+  color: white;
+  box-shadow: 0 4px 14px rgba(30, 144, 255, 0.3);
+  transition: all 0.2s ease;
+}
+.join-plan-btn-inline:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(30, 144, 255, 0.4);
+}
+.empty-state .join-plan-btn-inline {
+  margin-top: 16px;
 }
 
-.join-plan-fab .join-plan-btn-premium {
-  box-shadow: 0 12px 32px rgba(30, 144, 255, 0.4);
-}
-
-/* 高质感加入计划按钮 */
+/* 高质感加入计划按钮（弹窗内沿用） */
 .join-plan-btn-premium {
   background: linear-gradient(135deg, #1e90ff 0%, #38bdf8 50%, #60a5fa 100%);
   color: white;
@@ -1713,7 +1839,7 @@ onMounted(async () => {
   width: 100%;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .sidebar-nav-item::before {
@@ -1764,7 +1890,7 @@ onMounted(async () => {
   text-shadow: 0 3px 6px rgba(30, 144, 255, 0.3);
 }
 
-/* 世界排名 - 金色/橙色主题 */
+/* 计划排名 - 金色/橙色主题 */
 .sidebar-nav-item-ranking::before {
   background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(251, 191, 36, 0.1) 100%);
 }
@@ -1799,6 +1925,128 @@ onMounted(async () => {
 .sidebar-nav-item-ranking.active span {
   color: #d97706;
   text-shadow: 0 3px 6px rgba(245, 158, 11, 0.3);
+}
+
+/* 我的提交 - 绿色主题 */
+.sidebar-nav-item-submissions::before {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(74, 222, 128, 0.1) 100%);
+}
+.sidebar-nav-item-submissions:hover {
+  transform: translateX(-4px) scale(1.05);
+  box-shadow: 0 12px 32px rgba(34, 197, 94, 0.5);
+  border-color: #fff;
+  background: #fff;
+  animation: bounceRight 0.5s ease;
+}
+.sidebar-nav-item-submissions:hover::before { opacity: 1; }
+.sidebar-nav-item-submissions.active {
+  background: linear-gradient(135deg, #fff 0%, #dcfce7 100%);
+  border-color: #22c55e;
+  border-width: 6px;
+  color: #16a34a;
+  box-shadow: 0 12px 40px rgba(34, 197, 94, 0.6);
+  transform: translateX(-3px) scale(1.03);
+}
+.sidebar-nav-item-submissions.active::before {
+  opacity: 1;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(74, 222, 128, 0.2) 100%);
+}
+.sidebar-nav-item-submissions.active span {
+  color: #16a34a;
+  text-shadow: 0 3px 6px rgba(34, 197, 94, 0.3);
+}
+
+.my-submissions-view-wrap {
+  width: 100%;
+}
+
+/* 我的测试 */
+.my-tests-view {
+  width: 100%;
+}
+.tests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.test-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.test-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.test-card-header h4 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+.test-status {
+  font-size: 0.85rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.test-status.submitted { background: #dcfce7; color: #16a34a; }
+.test-status.in-progress { background: #dbeafe; color: #2563eb; }
+.test-status.not-started { background: #f1f5f9; color: #64748b; }
+.test-card-desc {
+  margin: 0 0 8px 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+.test-card-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: #64748b;
+  margin-bottom: 12px;
+}
+.test-card-actions .test-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border: none;
+}
+.test-btn.primary {
+  background: linear-gradient(135deg, #1e90ff, #38bdf8);
+  color: #fff;
+}
+.test-btn.secondary {
+  background: #e2e8f0;
+  color: #475569;
+}
+.sidebar-nav-item-tests::before {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(129, 140, 248, 0.1) 100%);
+}
+.sidebar-nav-item-tests:hover {
+  transform: translateX(-4px) scale(1.05);
+  box-shadow: 0 12px 32px rgba(99, 102, 241, 0.5);
+  border-color: #fff;
+  background: #fff;
+}
+.sidebar-nav-item-tests:hover::before { opacity: 1; }
+.sidebar-nav-item-tests.active {
+  background: linear-gradient(135deg, #fff 0%, #e0e7ff 100%);
+  border-color: #6366f1;
+  border-width: 6px;
+  color: #4f46e5;
+  box-shadow: 0 12px 40px rgba(99, 102, 241, 0.6);
+  transform: translateX(-3px) scale(1.03);
+}
+.sidebar-nav-item-tests.active::before {
+  opacity: 1;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(129, 140, 248, 0.2) 100%);
+}
+.sidebar-nav-item-tests.active span {
+  color: #4f46e5;
 }
 
 @keyframes bounceRight {
@@ -1849,6 +2097,25 @@ onMounted(async () => {
   letter-spacing: 1px;
   line-height: 1.2;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 上新角标：挂在按钮框右上角，非常醒目 */
+.sidebar-nav-new-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  font-size: 0.75rem !important;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 5px 12px;
+  border-radius: 0 12px 0 14px;
+  background: linear-gradient(135deg, #dc2626 0%, #ea580c 100%);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 3px 10px rgba(220, 38, 38, 0.55);
+  white-space: nowrap;
+  z-index: 5;
+  border: 2px solid rgba(255, 255, 255, 0.95);
 }
 
 .sidebar-nav-item:active {
@@ -2235,78 +2502,7 @@ onMounted(async () => {
   gap: 20px;
 }
 
-/* 易错题级别列表视图 */
-.wrong-questions-level-view {
-  padding: 0;
-}
-
-.wrong-questions-intro {
-  text-align: center;
-  color: #64748b;
-  font-size: 1rem;
-  margin-bottom: 24px;
-  line-height: 1.6;
-}
-
-.level-buttons-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
-}
-
-.level-button {
-  background: white;
-  border: 2px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 20px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.level-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.2);
-  border-color: #ef4444;
-  background: linear-gradient(135deg, #fff 0%, #fee2e2 100%);
-}
-
-.level-button-icon {
-  font-size: 2rem;
-  flex-shrink: 0;
-}
-
-.level-button-content {
-  flex: 1;
-  text-align: left;
-}
-
-.level-button-title {
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: #2c5282;
-  margin-bottom: 4px;
-}
-
-.level-button-desc {
-  font-size: 0.9rem;
-  color: #64748b;
-}
-
-.level-button-arrow {
-  color: #ef4444;
-  flex-shrink: 0;
-  transition: transform 0.3s ease;
-}
-
-.level-button:hover .level-button-arrow {
-  transform: translateX(4px);
-}
-
-/* 世界排名计划列表 */
+/* 计划排名列表 */
 .global-ranking-view {
   width: 100%;
 }

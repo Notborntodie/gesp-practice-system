@@ -12,9 +12,10 @@ const { logger } = require('../config/logger');
  * @param {Array} answers - 答案数组
  * @param {number|null} task_id - 任务ID（可选，用于任务内提交）
  * @param {number|null} practice_duration_seconds - 本次练习持续时间（秒，可选）
+ * @param {number|null} test_attempt_id - Test 参与 ID（可选，用于 Test 内提交）
  * @returns {Promise<Object>} 提交结果
  */
-async function submitExamInternal(connection, user_id, exam_id, answers, task_id = null, practice_duration_seconds = null) {
+async function submitExamInternal(connection, user_id, exam_id, answers, task_id = null, practice_duration_seconds = null, test_attempt_id = null) {
   // 获取考试信息
   const [examRows] = await connection.execute(
     'SELECT * FROM exams WHERE id = ?',
@@ -56,10 +57,10 @@ async function submitExamInternal(connection, user_id, exam_id, answers, task_id
   
   const attemptNumber = (attemptRows[0].max_attempt || 0) + 1;
   
-  // 创建提交记录（如果提供了task_id，则记录任务ID；practice_duration_seconds 为本次练习持续时间）
+  // 创建提交记录（task_id / test_attempt_id 可选；practice_duration_seconds 为本次练习持续时间）
   const [submissionResult] = await connection.execute(
-    'INSERT INTO submissions (user_id, exam_id, task_id, attempt_number, score, practice_duration_seconds) VALUES (?, ?, ?, ?, 0, ?)',
-    [user_id, exam_id, task_id, attemptNumber, practice_duration_seconds]
+    'INSERT INTO submissions (user_id, exam_id, task_id, test_attempt_id, attempt_number, score, practice_duration_seconds) VALUES (?, ?, ?, ?, ?, 0, ?)',
+    [user_id, exam_id, task_id, test_attempt_id, attemptNumber, practice_duration_seconds]
   );
   
   const submissionId = submissionResult.insertId;
@@ -249,10 +250,11 @@ router.get('/submissions/:submissionId', async (req, res) => {
     
     const submission = submissionRows[0];
     
-    // 获取详细答题信息
+    // 获取详细答题信息（含题目代码、图片等完整内容）
     const [answerRows] = await connection.execute(`
       SELECT sa.*, q.question_text, q.question_type, q.question_code, 
              q.correct_answer, q.explanation, q.level, q.difficulty,
+             q.image_url,
              eq.question_number
       FROM submission_answers sa
       JOIN questions q ON sa.question_id = q.id

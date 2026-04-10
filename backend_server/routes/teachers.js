@@ -811,6 +811,7 @@ router.get('/teacher/:teacherId/students/:studentId/submissions/:submissionId', 
     const [answerRows] = await connection.execute(`
       SELECT sa.*, q.question_text, q.question_type, q.question_code, 
              q.correct_answer, q.explanation, q.level, q.difficulty,
+             q.image_url,
              eq.question_number
       FROM submission_answers sa
       JOIN questions q ON sa.question_id = q.id
@@ -1625,9 +1626,11 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// HTML文件上传配置 - 同时存储到开发和生产环境目录
+// HTML文件上传配置
+// 开发环境：frontend/public/html
+// 生产环境：使用独立目录 /var/www/gesp-uploads/html，避免前端部署时 rm -rf 清空部署目录导致上传文件被删除
 const devHtmlUploadDir = path.join(__dirname, '../../frontend/public/html');
-const prodHtmlUploadDir = '/var/www/gesp-frontend/html';
+const prodHtmlUploadDir = process.env.ANIMATIONS_UPLOAD_DIR || '/var/www/gesp-uploads/html';
 
 // 确保目录存在
 [devHtmlUploadDir, prodHtmlUploadDir].forEach(dir => {

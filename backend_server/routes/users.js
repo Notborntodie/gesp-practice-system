@@ -582,4 +582,62 @@ router.put('/users/:userId/reset-password', async (req, res) => {
   }
 });
 
+// 根据姓名查询用户（供家长端小程序使用）
+router.get('/users/by-name', async (req, res) => {
+  try {
+    const { name } = req.query;
+    
+    // 验证必需参数
+    if (!name || name.trim() === '') {
+      return res.status(400).json({ 
+        success: false,
+        error: '缺少必需参数: name'
+      });
+    }
+    
+    const connection = await pool.getConnection();
+    
+    try {
+      // 搜索真实姓名或用户名包含关键词的用户
+      const [users] = await connection.execute(`
+        SELECT 
+          id,
+          username,
+          email,
+          real_name,
+          created_at
+        FROM users
+        WHERE real_name LIKE ? OR username LIKE ?
+        ORDER BY 
+          CASE 
+            WHEN real_name LIKE ? THEN 1
+            WHEN username LIKE ? THEN 2
+            ELSE 3
+          END,
+          created_at DESC
+        LIMIT 20
+      `, [`%${name.trim()}%`, `%${name.trim()}%`, `%${name}%`, `%${name}%`]);
+      
+      connection.release();
+      
+      res.json({
+        success: true,
+        data: users
+      });
+      
+    } catch (error) {
+      connection.release();
+      throw error;
+    }
+    
+  } catch (error) {
+    logger.error('根据姓名查询用户失败:', error);
+    res.status(500).json({ 
+      success: false,
+      error: '查询失败',
+      message: error.message 
+    });
+  }
+});
+
 module.exports = router;

@@ -32,7 +32,9 @@
                 <option value="3">GESP 3级</option>
                 <option value="4">GESP 4级</option>
                 <option value="5">GESP 5级</option>
-                <option value="6">CSP-J</option>
+                <option value="6">GESP 6级</option>
+                <option value="7">GESP 7级</option>
+                <option value="8">GESP 8级</option>
               </select>
             </div>
           </div>
@@ -56,19 +58,21 @@
                 <option value="3">GESP 3级</option>
                 <option value="4">GESP 4级</option>
                 <option value="5">GESP 5级</option>
-                <option value="6">CSP-J</option>
+                <option value="6">GESP 6级</option>
+                <option value="7">GESP 7级</option>
+                <option value="8">GESP 8级</option>
               </select>
             </div>
           </div>
           <div class="filter-info" v-if="selectedLevel">
-            <span>显示 {{ filteredKnowledgePoints.length }} 个 {{ selectedLevel === '6' ? 'CSP-J' : `GESP ${selectedLevel}级` }} 知识点</span>
+            <span>显示 {{ filteredKnowledgePoints.length }} 个 GESP {{ selectedLevel }}级 知识点</span>
           </div>
           <div class="knowledge-points-grid">
             <div v-for="kp in filteredKnowledgePoints" :key="kp.id" class="knowledge-point-item">
               <div class="kp-info">
                 <span class="kp-name">{{ kp.name }}</span>
                 <span class="kp-category">{{ getCategoryName(kp.category) }}</span>
-                <span class="kp-level">{{ kp.level === 6 ? 'CSP-J' : `GESP ${kp.level}级` }}</span>
+                <span class="kp-level">GESP {{ kp.level }}级</span>
               </div>
               <div class="kp-actions">
                 <button @click="editKnowledgePoint(kp)" class="btn-edit" title="编辑">✏️</button>
@@ -115,7 +119,9 @@
               <option value="3">GESP 3级</option>
               <option value="4">GESP 4级</option>
               <option value="5">GESP 5级</option>
-              <option value="6">CSP-J</option>
+              <option value="6">GESP 6级</option>
+              <option value="7">GESP 7级</option>
+              <option value="8">GESP 8级</option>
             </select>
           </div>
         </div>

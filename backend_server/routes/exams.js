@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { pool } = require('../config/database');
+const { pool, getValidCategories } = require('../config/database');
 const { cacheMiddleware, cacheUtils } = require('../config/cache');
 const { logger } = require('../config/logger');
 
@@ -26,9 +26,10 @@ router.get('/exam/:examId', cacheMiddleware(600, 'exam'), async (req, res) => {
 // 获取考试列表（带缓存和过滤）
 router.get('/exams', cacheMiddleware(300, 'exams'), async (req, res) => {
   try {
-    const { level, name, difficulty, type } = req.query;
+    const { level, category, name, difficulty, type, include_all } = req.query;
     const connection = await pool.getConnection();
-    
+    const forBankOnly = !include_all; // 题库列表只显示 bank_visible=1；管理/选题传 include_all=1 可见全部
+
     let sql = `
       SELECT e.*, COUNT(eq.question_id) as question_count
       FROM exams e
@@ -36,35 +37,45 @@ router.get('/exams', cacheMiddleware(300, 'exams'), async (req, res) => {
       WHERE 1=1
     `;
     const params = [];
-    
+
+    if (forBankOnly) {
+      sql += ' AND e.bank_visible = 1';
+    }
+
     // 按等级过滤
     if (level) {
       sql += ' AND e.level = ?';
       params.push(level);
     }
-    
+
+    // 按 category 过滤
+    if (category) {
+      sql += ' AND e.category = ?';
+      params.push(category);
+    }
+
     // 按名称过滤（模糊搜索）
     if (name) {
       sql += ' AND e.name LIKE ?';
       params.push(`%${name}%`);
     }
-    
+
     // 按难度过滤（如果有难度字段的话）
     if (difficulty) {
       sql += ' AND e.difficulty = ?';
       params.push(difficulty);
     }
-    
+
     // 按类型过滤
     if (type) {
       sql += ' AND e.type = ?';
       params.push(type);
     }
-    
+
     sql += ' GROUP BY e.id ORDER BY e.created_at DESC';
-    
+
     const [examRows] = await connection.execute(sql, params);
-    
+
     connection.release();
     res.json(examRows);
   } catch (error) {
@@ -98,38 +109,58 @@ router.post('/exams', async (req, res) => {
     const {
       name,
       level,
+      category = 'GESP', // 默认为 GESP
       description = '',
       type = '真题', // 默认为真题类型
+      bank_visible = 1, // 题库可见，默认可见
       question_ids = [] // 题目ID数组，包含题目在考试中的编号信息
     } = req.body;
-    
+
     // 验证必需参数
-    if (!name || !level) {
-      return res.status(400).json({ 
-        error: '缺少必需参数', 
+    if (!name) {
+      return res.status(400).json({
+        error: '缺少必需参数',
+        required: ['name'],
+        received: { name }
+      });
+    }
+
+    // GESP 分类必须有 level
+    if (category === 'GESP' && !level) {
+      return res.status(400).json({
+        error: 'GESP 分类必须指定 level',
         required: ['name', 'level'],
         received: { name, level }
       });
     }
-    
+
     // 验证type参数
     if (type && !['真题', '模拟', '专项'].includes(type)) {
-      return res.status(400).json({ 
-        error: '无效的考试类型', 
+      return res.status(400).json({
+        error: '无效的考试类型',
         valid_types: ['真题', '模拟', '专项'],
         received: type
       });
     }
-    
+
+    // 验证 category 参数
+    const validCategories = await getValidCategories();
+    if (category && !validCategories.includes(category)) {
+      return res.status(400).json({
+        error: `category 必须是以下值之一：${validCategories.join(', ')}`,
+        received: category
+      });
+    }
+
     const connection = await pool.getConnection();
-    
+
     try {
       await connection.beginTransaction();
-      
+
       // 创建考试
       const [examResult] = await connection.execute(
-        'INSERT INTO exams (name, level, description, type, total_questions) VALUES (?, ?, ?, ?, ?)',
-        [name, level, description, type, question_ids.length]
+        'INSERT INTO exams (name, level, category, description, type, total_questions, bank_visible) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [name, level || null, category, description, type, question_ids.length, bank_visible ? 1 : 0]
       );
       
       const examId = examResult.insertId;
@@ -214,47 +245,64 @@ router.put('/exams/:examId', async (req, res) => {
     const {
       name,
       level,
+      category,
       description,
       type,
+      bank_visible,
       question_ids = [] // 题目ID数组，包含题目在考试中的编号信息
     } = req.body;
-    
+
     // 验证type参数
     if (type && !['真题', '模拟', '专项'].includes(type)) {
-      return res.status(400).json({ 
-        error: '无效的考试类型', 
+      return res.status(400).json({
+        error: '无效的考试类型',
         valid_types: ['真题', '模拟', '专项'],
         received: type
       });
     }
-    
+
+    // 验证 category 参数（如果提供）
+    if (category !== undefined) {
+      const validCategories = await getValidCategories();
+      if (!validCategories.includes(category)) {
+        return res.status(400).json({
+          error: `category 必须是以下值之一：${validCategories.join(', ')}`,
+          received: category
+        });
+      }
+    }
+
     const connection = await pool.getConnection();
-    
+
     try {
       await connection.beginTransaction();
-      
+
       // 检查考试是否存在
       const [examExists] = await connection.execute(
         'SELECT id FROM exams WHERE id = ?',
         [examId]
       );
-      
+
       if (examExists.length === 0) {
         throw new Error('考试不存在');
       }
-      
+
       // 更新考试基本信息
-      if (name || level || description !== undefined || type !== undefined) {
+      if (name || level || category !== undefined || description !== undefined || type !== undefined || bank_visible !== undefined) {
         const updateFields = [];
         const updateValues = [];
-        
+
         if (name) {
           updateFields.push('name = ?');
           updateValues.push(name);
         }
-        if (level) {
+        if (level !== undefined) {
           updateFields.push('level = ?');
-          updateValues.push(level);
+          updateValues.push(level || null);
+        }
+        if (category !== undefined) {
+          updateFields.push('category = ?');
+          updateValues.push(category);
         }
         if (description !== undefined) {
           updateFields.push('description = ?');
@@ -264,7 +312,11 @@ router.put('/exams/:examId', async (req, res) => {
           updateFields.push('type = ?');
           updateValues.push(type);
         }
-        
+        if (bank_visible !== undefined) {
+          updateFields.push('bank_visible = ?');
+          updateValues.push(bank_visible ? 1 : 0);
+        }
+
         updateValues.push(examId);
         
         await connection.execute(

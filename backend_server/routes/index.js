@@ -12,6 +12,8 @@ const submissionRoutes = require('./submissions');
 const knowledgeRoutes = require('./knowledge');
 const ojRoutes = require('./oj');
 const learningPlanRoutes = require('./learningPlans');
+const testRoutes = require('./tests');
+const questionTypesRoutes = require('./questionTypes');
 
 // 健康检查接口
 router.get('/api/health', async (req, res) => {
@@ -45,5 +47,7 @@ router.use('/api', submissionRoutes);
 router.use('/api', knowledgeRoutes);
 router.use('/api', ojRoutes);
 router.use('/api', learningPlanRoutes);
+router.use('/api', testRoutes);
+router.use('/api', questionTypesRoutes);
 
 module.exports = router;

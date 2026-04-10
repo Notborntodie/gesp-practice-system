@@ -1,0 +1,90 @@
+[
+  {
+    "input": "8459045",
+    "output": "8859085",
+    "is_hidden": false,
+    "is_displayed": true,
+    "sort_order": 1,
+    "explanation": "题面样例：8459045 中所有 4 替换为 8 得 8859085。"
+  },
+  {
+    "input": "123",
+    "output": "123",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 2,
+    "explanation": null
+  },
+  {
+    "input": "4",
+    "output": "8",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 3,
+    "explanation": null
+  },
+  {
+    "input": "444",
+    "output": "888",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 4,
+    "explanation": null
+  },
+  {
+    "input": "10405",
+    "output": "10805",
+    "is_hidden": false,
+    "is_displayed": false,
+    "sort_order": 5,
+    "explanation": null
+  },
+  {
+    "input": "7159",
+    "output": "7159",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 6,
+    "explanation": null
+  },
+  {
+    "input": "21098",
+    "output": "21098",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 7,
+    "explanation": null
+  },
+  {
+    "input": "642581",
+    "output": "682581",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 8,
+    "explanation": null
+  },
+  {
+    "input": "8483838",
+    "output": "8883838",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 9,
+    "explanation": null
+  },
+  {
+    "input": "97418529",
+    "output": "97818529",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 10,
+    "explanation": null
+  },
+  {
+    "input": "4000",
+    "output": "8000",
+    "is_hidden": true,
+    "is_displayed": false,
+    "sort_order": 11,
+    "explanation": "专项卡错误写法：通过逆序重构整数会把 4000 变成 8，本点要求输出 8000。"
+  }
+]

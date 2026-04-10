@@ -52,25 +52,31 @@
                   />
                   <span class="font-size-value-header">{{ fontSize }}px</span>
                 </div>
-                <button 
-                  @click="runCode" 
-                  class="btn btn-test" 
-                  :disabled="isRunning || runCooldown > 0" 
-                  :class="{ 'btn-loading': isRunning }"
-                >
-                  <span v-if="!isRunning && runCooldown === 0" class="btn-content">
-                    <Icon name="play" :size="16" />
-                    <span>运行代码</span>
-                  </span>
-                  <span v-else-if="isRunning" class="btn-content">
-                    <Icon name="loader-2" :size="16" spin />
-                    <span>运行中...</span>
-                  </span>
-                  <span v-else class="btn-content">
-                    <Icon name="clock" :size="16" />
-                    <span>等待 {{ runCooldown }}s</span>
-                  </span>
-                </button>
+                <template v-if="!isTestMode">
+                  <button 
+                    @click="runCode" 
+                    class="btn btn-test" 
+                    :disabled="isRunning || runCooldown > 0" 
+                    :class="{ 'btn-loading': isRunning }"
+                  >
+                    <span v-if="!isRunning && runCooldown === 0" class="btn-content">
+                      <Icon name="play" :size="16" />
+                      <span>运行代码</span>
+                    </span>
+                    <span v-else-if="isRunning" class="btn-content">
+                      <Icon name="loader-2" :size="16" spin />
+                      <span>运行中...</span>
+                    </span>
+                    <span v-else class="btn-content">
+                      <Icon name="clock" :size="16" />
+                      <span>等待 {{ runCooldown }}s</span>
+                    </span>
+                  </button>
+                </template>
+                <div v-else class="test-mode-run-hint">
+                  <Icon name="info" :size="16" />
+                  <span>先使用 DevC++ 自测</span>
+                </div>
                 <button 
                   @click="submitCode" 
                   class="btn btn-submit" 
@@ -282,7 +288,7 @@
                 <div class="stat-label">判题结果</div>
                 <div class="stat-value verdict-text">{{ submitResult.verdict }}</div>
               </div>
-              <div class="stat-box">
+              <div v-if="!isTestMode" class="stat-box">
                 <div class="stat-label">通过测试点</div>
                 <div class="stat-value">
                   {{ submitResult.passedTests }} / {{ submitResult.totalTests }}
@@ -290,8 +296,8 @@
               </div>
             </div>
 
-            <!-- 测试用例详情 -->
-            <div v-if="submitResult.results && submitResult.results.length > 0" class="test-cases-section">
+            <!-- 测试用例详情（考试模式下不显示） -->
+            <div v-if="!isTestMode && submitResult.results && submitResult.results.length > 0" class="test-cases-section">
               <h4 class="section-subtitle">测试用例详情</h4>
               <div 
                 v-for="(testCase, index) in submitResult.results" 
@@ -421,7 +427,7 @@
   
   <script setup lang="ts">
   import { ref, onMounted, onUnmounted, computed } from 'vue'
-  import { useRoute, useRouter } from 'vue-router'
+  import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
   import axios from 'axios'
   import { BASE_URL, OJ_API_CONFIGS } from '@/config/api'
   import Icon from '@/components/Icon.vue'
@@ -555,6 +561,16 @@ import katex from 'katex'
   const fromTaskView = urlParams.get('from') === 'taskview'
   const planId = urlParams.get('planId') || null
   const taskId = urlParams.get('taskId') || null
+  const testAttemptId = urlParams.get('testAttemptId') || null
+  const testId = urlParams.get('testId') || null
+  
+  /** 是否从 Test 进入（考试模式：不显示在线自测，提交后只显示 AC/错误，不显示测试点与恭喜通过） */
+  const isTestMode = computed(() => {
+    const q = route.query
+    const aid = q.testAttemptId as string | undefined
+    const tid = q.testId as string | undefined
+    return !!(aid && tid && String(tid).trim() !== '')
+  })
   
   // 调试日志
   console.log('🔍 [SmartOJView] URL参数检查:', {
@@ -563,6 +579,7 @@ import katex from 'katex'
     fromTaskView,
     planId,
     taskId,
+    testAttemptId,
     fullUrl: window.location.href
   })
   
@@ -1246,15 +1263,17 @@ const confirmAndSubmit = async () => {
       
       console.log('发送到后端的提交数据:', requestData)
   
-      // 判断是否使用任务内提交接口
+      // 判断使用哪种提交接口：Test 聚合考试 > 学习任务 > 普通 OJ
       let submitUrl = '/api/oj/submit'
       let useFallback = true
+      const isTestAttemptSubmission = testAttemptId && testAttemptId.trim() !== ''
+      const isTaskSubmission = !isTestAttemptSubmission && fromTaskView && taskId && taskId.trim() !== ''
       
-      // 检查是否是任务内提交：from=taskview 且 taskId 存在且不为空
-      const isTaskSubmission = fromTaskView && taskId && taskId.trim() !== ''
-      
-      if (isTaskSubmission) {
-        // 任务内提交仍然使用原 BASE_URL（不使用故障切换）
+      if (isTestAttemptSubmission) {
+        submitUrl = `${BASE_URL}/tests/attempts/${testAttemptId}/submit-oj`
+        useFallback = false
+        console.log('✅ [SmartOJView] 使用 Test 聚合考试提交接口:', submitUrl)
+      } else if (isTaskSubmission) {
         submitUrl = `${BASE_URL}/learning-tasks/${taskId}/submit-oj`
         useFallback = false
         console.log('✅ [SmartOJView] 使用任务内提交接口:', submitUrl, {
@@ -1264,10 +1283,10 @@ const confirmAndSubmit = async () => {
         })
       } else {
         console.log('⚠️ [SmartOJView] 使用 OJ 判题服务接口（支持故障切换）', {
+          testAttemptId,
           fromTaskView,
           taskId,
-          planId,
-          reason: !fromTaskView ? '不是从任务页面进入' : !taskId ? '缺少taskId参数' : 'taskId为空'
+          planId
         })
       }
 
@@ -1302,7 +1321,10 @@ const confirmAndSubmit = async () => {
       const submitData = await submitResponse.json()
       console.log('提交响应:', submitData)
       
-      if (!submitData.success) {
+      if (submitData.success === false) {
+        throw new Error(submitData.error || '提交失败')
+      }
+      if (!submitData.success && submitData.submission_id == null) {
         throw new Error(submitData.error || '提交失败')
       }
       
@@ -1335,14 +1357,14 @@ const confirmAndSubmit = async () => {
           statusText = '🔧 编译错误'
         }
         
-        // 设置提交结果
+        // 设置提交结果（考试模式下不展示测试点详情）
         submitResult.value = {
           status: status,
           statusText: statusText,
           verdict: submission.verdict,
           passedTests: submission.passed_tests || 0,
           totalTests: submission.total_tests || 0,
-          results: submission.results || [],
+          results: isTestMode.value ? [] : (submission.results || []),
           runtime: submission.judge_duration || 0,
           memory: 0,
         }
@@ -1350,15 +1372,15 @@ const confirmAndSubmit = async () => {
         // 更新题目提交状态
         currentProblem.value.submitStatus = status
         
-        // 如果 AC 了，触发烟花效果和返回确认弹窗，并清除代码缓存
+        // 如果 AC 了，非考试模式下才触发烟花和「恭喜通过」弹窗
         if (submission.verdict === 'Accepted') {
-          // 清除代码缓存，下次进入时编辑器为空
           clearCachedCode(problemId as string)
-          triggerFireworks()
-          // 延迟显示返回确认弹窗，让用户先看到烟花效果
-          setTimeout(() => {
-            showReturnConfirmDialog.value = true
-          }, 1500)
+          if (!isTestMode.value) {
+            triggerFireworks()
+            setTimeout(() => {
+              showReturnConfirmDialog.value = true
+            }, 1500)
+          }
         }
       }
       
@@ -1499,8 +1521,14 @@ const confirmAndSubmit = async () => {
     return map[status] || '未提交'
   }
   
-  // 返回上一页
+  // 返回上一页（Test 内则回到 Test 详情，始终从当前 route 读 query）
   const goBack = () => {
+    const tid = route.query.testId as string | undefined
+    const aid = route.query.testAttemptId as string | undefined
+    if (aid && tid && String(tid).trim() !== '') {
+      router.push(`/tests/${tid}`)
+      return
+    }
     window.history.back()
   }
 
@@ -1516,12 +1544,16 @@ const confirmAndSubmit = async () => {
   
   // 退出OJ（直接退出，无需确认）
   const exitOJ = () => {
-    // 如果是从计划页面进入的，返回到计划页面
+    const tid = route.query.testId as string | undefined
+    const aid = route.query.testAttemptId as string | undefined
+    if (aid && tid && String(tid).trim() !== '') {
+      router.push(`/tests/${tid}`)
+      return
+    }
     if (fromPlan) {
       console.log('从计划页面进入，返回到计划页面')
       router.push('/plan')
     } else {
-      // 其他情况，返回到上一页
       console.log('返回到上一页')
       window.history.back()
     }
@@ -1565,7 +1597,12 @@ const confirmAndSubmit = async () => {
   // 确认返回
   const confirmReturn = () => {
     showReturnConfirmDialog.value = false
-    // 如果是从任务页面进入的，返回到任务页面并激活编程题标签
+    const tid = route.query.testId as string | undefined
+    const aid = route.query.testAttemptId as string | undefined
+    if (aid && tid && String(tid).trim() !== '') {
+      router.push(`/tests/${tid}`)
+      return
+    }
     const hasValidTaskParams = fromTaskView && planId && planId.trim() !== '' && taskId && taskId.trim() !== ''
     if (hasValidTaskParams) {
       console.log('✅ [SmartOJView] 从任务页面进入，返回到任务页面（编程题标签）', { planId, taskId })
@@ -1574,7 +1611,6 @@ const confirmAndSubmit = async () => {
       console.log('✅ [SmartOJView] 从计划页面进入，返回到计划页面')
       router.push('/plan')
     } else {
-      // 其他情况，返回到上一页
       console.log('⚠️ [SmartOJView] 返回到上一页', { fromTaskView, fromPlan, planId, taskId })
       window.history.back()
     }
@@ -1631,6 +1667,21 @@ const confirmAndSubmit = async () => {
       isSubmittingOJ.value = false
     }
   }
+  
+  // 如果是 Test 内做题，离开本页时统一跳回对应的 Test 详情（包括浏览器返回/导航栏返回）
+  onBeforeRouteLeave((to, from, next) => {
+    const tid = route.query.testId as string | undefined
+    const aid = route.query.testAttemptId as string | undefined
+    if (!(aid && tid && String(tid).trim() !== '')) {
+      next()
+      return
+    }
+    if (to.path === `/tests/${tid}`) {
+      next()
+      return
+    }
+    next({ path: `/tests/${tid}` })
+  })
   
   // 点击编辑器区域时聚焦编辑器
   const focusEditor = () => {
@@ -3470,6 +3521,18 @@ const confirmAndSubmit = async () => {
   .btn-test.btn-loading {
     background: linear-gradient(135deg, #0c7cd5 0%, #1e90ff 100%);
     box-shadow: 0 4px 16px rgba(30, 144, 255, 0.5);
+  }
+
+  .test-mode-run-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: var(--color-text-secondary, #64748b);
+    font-size: 14px;
+    background: var(--color-muted, #f1f5f9);
+    border-radius: 8px;
+    border: 1px dashed var(--color-border, #cbd5e1);
   }
   
   .btn-submit {

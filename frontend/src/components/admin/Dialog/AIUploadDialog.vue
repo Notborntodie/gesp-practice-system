@@ -35,14 +35,34 @@
             </div>
             
             <div class="param-group">
+              <label>类型:</label>
+              <select v-model="presetCategory" class="param-select" :disabled="questionTypesLoading || !allQuestionTypes || allQuestionTypes.length === 0">
+                <option value="" disabled>{{ questionTypesLoading ? '加载中...' : '选择类型' }}</option>
+                <!-- 安全检查：只在类型存在时渲染 -->
+                <template v-if="allQuestionTypes && allQuestionTypes.length > 0">
+                  <option v-for="type in allQuestionTypes" :key="type.name || type.id" :value="type.name">
+                    {{ type.display_name || type.name }}
+                  </option>
+                </template>
+              </select>
+              <button @click="openCreateTypeDialog" class="btn-create-type" title="创建新类型">+</button>
+              <!-- 调试信息 -->
+              <small v-if="!questionTypesLoading" style="color: rgba(255,255,255,0.6)">
+                {{ allQuestionTypes ? `共${allQuestionTypes.length}个类型` : '类型加载失败' }}
+              </small>
+            </div>
+
+            <div class="param-group">
               <label>等级:</label>
               <select v-model="presetLevel" class="param-select">
-                <option value="1">GESP 1级</option>
-                <option value="2">GESP 2级</option>
-                <option value="3">GESP 3级</option>
-                <option value="4">GESP 4级</option>
-                <option value="5">GESP 5级</option>
-                <option value="6">CSP-J</option>
+                <option value="1">1级</option>
+                <option value="2">2级</option>
+                <option value="3">3级</option>
+                <option value="4">4级</option>
+                <option value="5">5级</option>
+                <option value="6">6级</option>
+                <option value="7">7级</option>
+                <option value="8">8级</option>
               </select>
             </div>
             
@@ -294,14 +314,28 @@
                   <h5>基本信息</h5>
                   <div class="form-row">
                     <div class="form-group">
+                      <label>类型：</label>
+                      <select v-model="currentQuestion.category" required :disabled="questionTypesLoading || !allQuestionTypes || allQuestionTypes.length === 0">
+                        <option value="" disabled>选择类型</option>
+                        <template v-if="allQuestionTypes && allQuestionTypes.length > 0">
+                          <option v-for="type in allQuestionTypes" :key="type.name || type.id" :value="type.name">
+                            {{ type.display_name || type.name }}
+                          </option>
+                        </template>
+                        <option v-else disabled>暂无类型数据</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
                       <label>等级：</label>
                       <select v-model="currentQuestion.level" required>
-                        <option value="1">GESP 1级</option>
-                        <option value="2">GESP 2级</option>
-                        <option value="3">GESP 3级</option>
-                        <option value="4">GESP 4级</option>
-                        <option value="5">GESP 5级</option>
-                        <option value="6">CSP-J</option>
+                        <option value="1">1级</option>
+                        <option value="2">2级</option>
+                        <option value="3">3级</option>
+                        <option value="4">4级</option>
+                        <option value="5">5级</option>
+                        <option value="6">6级</option>
+                        <option value="7">7级</option>
+                        <option value="8">8级</option>
                       </select>
                     </div>
                     <div class="form-group">
@@ -512,7 +546,68 @@
     :message="successMessage"
     @close="closeSuccessMessage"
   />
-  
+
+  <!-- 创建新类型对话框 -->
+  <div v-if="showCreateTypeDialog" class="dialog-overlay" @click="closeCreateTypeDialog">
+    <div class="dialog-container type-dialog-container" @click.stop>
+      <div class="dialog-header">
+        <h3 class="dialog-title">创建新题目类型</h3>
+        <button @click="closeCreateTypeDialog" class="btn-close">×</button>
+      </div>
+
+      <div class="dialog-body">
+        <form @submit.prevent="createNewQuestionType" class="type-form">
+          <div class="form-group">
+            <label for="typeName">类型名称 <span class="required">*</span></label>
+            <input
+              id="typeName"
+              type="text"
+              v-model="newTypeName"
+              placeholder="例如：LEETCODE、ATCODER（英文标识，自动大写）"
+              required
+              maxlength="50"
+              class="form-input"
+            />
+            <small>类型名称将自动转换为大写字母和下划线</small>
+          </div>
+
+          <div class="form-group">
+            <label for="typeDisplayName">显示名称 <span class="required">*</span></label>
+            <input
+              id="typeDisplayName"
+              type="text"
+              v-model="newTypeDisplayName"
+              placeholder="例如：LeetCode、AtCoder（显示给用户看）"
+              required
+              maxlength="100"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="typeDescription">描述</label>
+            <textarea
+              id="typeDescription"
+              v-model="newTypeDescription"
+              placeholder="简单描述这个类型..."
+              rows="3"
+              class="form-textarea"
+            ></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" @click="closeCreateTypeDialog" class="btn btn-secondary">
+              取消
+            </button>
+            <button type="submit" class="btn btn-primary" :disabled="creatingType">
+              {{ creatingType ? '创建中...' : '创建类型' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
 </template>
 
 <script setup lang="ts">import { BASE_URL, API_SERVER_BASE, AI_API_BASE_URL, normalizeImageUrl } from '@/config/api'
@@ -528,6 +623,7 @@ function getImageUrl(url: string | undefined): string {
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import axios from 'axios'
 import SuccessMessageDialog from './SuccessMessageDialog.vue'
+import { useQuestionTypeStore } from '@/stores/questionTypeStore'
 
 interface Props {
   visible: boolean
@@ -541,12 +637,37 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
+// 题目类型管理
+const questionTypeStore = useQuestionTypeStore()
+const showCreateTypeDialog = ref(false)
+const newTypeName = ref('')
+const newTypeDisplayName = ref('')
+const newTypeDescription = ref('')
+const creatingType = ref(false)
+
 // 计算属性
 const currentQuestion = computed(() => {
   if (processedQuestions.value.length > 0 && currentQuestionIndex.value < processedQuestions.value.length) {
     return processedQuestions.value[currentQuestionIndex.value]
   }
   return null
+})
+
+// 题目类型计算属性
+const allQuestionTypes = computed(() => {
+  return questionTypeStore.allTypes.value || []
+})
+
+const questionTypesLoading = computed(() => {
+  return questionTypeStore.loading.value
+})
+
+const systemQuestionTypes = computed(() => {
+  return questionTypeStore.systemTypes.value || []
+})
+
+const customQuestionTypes = computed(() => {
+  return questionTypeStore.customTypes.value || []
 })
 
 // 文件相关
@@ -556,6 +677,7 @@ const selectedFile = ref<File | null>(null)
 // 处理参数
 const parallelWorkers = ref(3)
 const expectedQuestions = ref('')
+const presetCategory = ref('GESP')
 const presetLevel = ref(3)
 const presetQuestionDate = ref('')
 
@@ -633,6 +755,7 @@ function resetForm() {
   selectedFile.value = null
   parallelWorkers.value = 3
   expectedQuestions.value = ''
+  presetCategory.value = 'GESP'
   presetLevel.value = 3
   presetQuestionDate.value = ''
   processedQuestions.value = []
@@ -756,6 +879,7 @@ async function handleStreamMessage(data: any) {
         // 添加新题目到列表
         const questionWithPresets = {
           ...data.question,
+          category: presetCategory.value,
           level: presetLevel.value,
           difficulty: data.question.difficulty || 'medium',
           question_date: presetQuestionDate.value,
@@ -996,6 +1120,68 @@ async function fetchKnowledgePoints() {
   }
 }
 
+// 获取题目类型列表
+async function fetchQuestionTypes() {
+  try {
+    await questionTypeStore.fetchQuestionTypes()
+    console.log('题目类型加载成功:', {
+      system: systemQuestionTypes.value,
+      custom: customQuestionTypes.value,
+      all: allQuestionTypes.value
+    })
+  } catch (error) {
+    console.error('获取题目类型失败:', error)
+  }
+}
+
+// 创建新题目类型
+async function createNewQuestionType() {
+  if (!newTypeName.value.trim()) {
+    alert('请输入类型名称')
+    return
+  }
+
+  creatingType.value = true
+  try {
+    const newType = await questionTypeStore.createQuestionType({
+      name: newTypeName.value.trim(),
+      display_name: newTypeDisplayName.value.trim() || newTypeName.value.trim(),
+      description: newTypeDescription.value.trim()
+    })
+
+    // 创建成功后，选择新创建的类型
+    presetCategory.value = newType.name
+
+    // 关闭对话框并重置表单
+    showCreateTypeDialog.value = false
+    newTypeName.value = ''
+    newTypeDisplayName.value = ''
+    newTypeDescription.value = ''
+
+    alert(`类型 "${newType.display_name}" 创建成功！`)
+  } catch (error: any) {
+    alert('创建失败: ' + (error.response?.data?.error || error.message))
+  } finally {
+    creatingType.value = false
+  }
+}
+
+// 打开创建类型对话框
+function openCreateTypeDialog() {
+  newTypeName.value = ''
+  newTypeDisplayName.value = ''
+  newTypeDescription.value = ''
+  showCreateTypeDialog.value = true
+}
+
+// 关闭创建类型对话框
+function closeCreateTypeDialog() {
+  showCreateTypeDialog.value = false
+  newTypeName.value = ''
+  newTypeDisplayName.value = ''
+  newTypeDescription.value = ''
+}
+
 // 上传所有题目
 async function uploadAllQuestions() {
   if (processedQuestions.value.length === 0) return
@@ -1023,6 +1209,7 @@ async function uploadAllQuestions() {
 
 onMounted(() => {
   fetchKnowledgePoints()
+  fetchQuestionTypes()
   document.addEventListener('fullscreenchange', handleFullscreenChange)
 })
 
@@ -1164,6 +1351,7 @@ function addNewQuestion() {
     question_code: '',
     correct_answer: '',
     explanation: '',
+    category: presetCategory.value,
     level: presetLevel.value,
     difficulty: 'medium',
     question_date: presetQuestionDate.value,
@@ -1358,9 +1546,6 @@ async function uploadImage(file: File) {
     
     
     const response = await axios.post(`${BASE_URL}/upload-image`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      },
       onUploadProgress: (progressEvent) => {
         if (progressEvent.total) {
           uploadProgress.value = Math.round((progressEvent.loaded * 100) / progressEvent.total)
@@ -1550,6 +1735,25 @@ onUnmounted(() => {
   color: white;
   font-size: 12px;
   min-width: 60px;
+}
+
+/* 确保下拉选项可见 */
+.param-select {
+  position: relative;
+  z-index: 1002;
+}
+
+.param-select option {
+  background: #333;
+  color: white;
+  padding: 8px;
+}
+
+.param-select optgroup {
+  background: #444;
+  color: #aaa;
+  font-weight: bold;
+  padding: 4px 8px;
 }
 
 .param-select:focus,
@@ -3225,5 +3429,137 @@ onUnmounted(() => {
     max-width: 100%;
     overflow-x: auto;
   }
+}
+
+/* 创建新类型按钮 */
+.btn-create-type {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 4px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f5f5f5;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  color: #666;
+  transition: all 0.2s;
+  position: relative;
+  z-index: 1002;
+}
+
+.btn-create-type:hover {
+  background: #e0e0e0;
+  border-color: #bbb;
+  color: #333;
+}
+
+.btn-create-type:active {
+  transform: scale(0.95);
+}
+
+/* 创建类型对话框 */
+.type-dialog-container {
+  max-width: 500px;
+}
+
+.type-form {
+  padding: 20px;
+}
+
+.type-form .form-group {
+  margin-bottom: 20px;
+}
+
+.type-form .form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #333;
+  font-size: 14px;
+}
+
+.type-form .form-group .required {
+  color: #e74c3c;
+  margin-left: 2px;
+}
+
+.type-form .form-group small {
+  display: block;
+  margin-top: 4px;
+  color: #999;
+  font-size: 12px;
+}
+
+.type-form .form-input,
+.type-form .form-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.type-form .form-input:focus,
+.type-form .form-textarea:focus {
+  outline: none;
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
+}
+
+.type-form .form-textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+}
+
+.type-form .form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+}
+
+.type-form .btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.type-form .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.btn-close:hover {
+  background: #f5f5f5;
+  color: #333;
 }
 </style> 

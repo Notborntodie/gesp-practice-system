@@ -17,6 +17,13 @@
         </div>
       </div>
       
+      <!-- 测试管理 -->
+      <div v-if="currentActiveSection === 'my-tests'" class="student-management-wrapper">
+        <div class="student-management-main">
+          <AdminTestManagementSection />
+        </div>
+      </div>
+      
       <!-- 学生管理 -->
       <div v-if="currentActiveSection === 'student-management'" class="student-management-wrapper" :class="{ 'has-panel': selectedStudentForPlanProgress || selectedStudentForPlanManagement }">
         <div class="student-management-main">
@@ -51,77 +58,6 @@
           @close="closeStudentPlanManagement"
           @plan-updated="handlePlanUpdated"
         />
-      </div>
-      
-      <!-- 动画管理 -->
-      <div v-if="currentActiveSection === 'animation-management'" class="student-management-wrapper">
-        <div class="student-management-main">
-          <div class="content-section">
-            <div class="section-header">
-              <div class="header-left">
-                <h2>动画管理</h2>
-              </div>
-              <div class="header-right">
-                <button @click="showUploadAnimationDialog = true" class="btn-primary">
-                  <Icon name="plus" :size="18" />
-                  上传动画
-                </button>
-              </div>
-            </div>
-            
-            <div class="table-container">
-              <div v-if="animationsLoading" class="loading-state">
-                <div class="loading-spinner"></div>
-                <span>加载中...</span>
-              </div>
-              
-              <div v-else-if="teacherAnimations.length === 0" class="empty-state">
-                <Icon name="file" :size="64" class="empty-icon" />
-                <h3>暂无动画</h3>
-                <p>点击"上传动画"按钮开始上传HTML动画文件</p>
-              </div>
-              
-              <div v-else class="animations-grid">
-                <div 
-                  v-for="animation in teacherAnimations" 
-                  :key="animation.id"
-                  class="animation-card"
-                >
-                  <div class="animation-card-header">
-                    <div class="animation-icon">
-                      <Icon :name="animation.icon || 'play-circle'" :size="24" />
-                    </div>
-                    <h3 class="animation-title">{{ animation.title }}</h3>
-                    <button 
-                      @click="deleteAnimation(animation.id)"
-                      class="btn-delete-animation"
-                      title="删除"
-                    >
-                      <Icon name="trash-2" :size="18" />
-                    </button>
-                  </div>
-                  <div class="animation-card-body">
-                    <p v-if="animation.description" class="animation-description">{{ animation.description }}</p>
-                    <div class="animation-meta">
-                      <span class="meta-item">
-                        <Icon name="folder" :size="14" />
-                        {{ animation.category || '未分类' }}
-                      </span>
-                      <span class="meta-item">
-                        <Icon name="eye" :size="14" />
-                        {{ animation.view_count || 0 }} 次查看
-                      </span>
-                      <span class="meta-item">
-                        <Icon name="calendar" :size="14" />
-                        {{ formatDate(animation.created_at) }}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
       
     </main>
@@ -381,15 +317,6 @@
       :message="confirmMessage"
       @confirm="handleConfirm"
       @cancel="handleCancel"
-    />
-    
-    <!-- 上传动画对话框 -->
-    <UploadAnimationDialog
-      v-if="userInfo"
-      :visible="showUploadAnimationDialog"
-      :teacher-id="userInfo.id"
-      @close="showUploadAnimationDialog = false"
-      @success="handleAnimationUploadSuccess"
     />
     
     <!-- 学生详情对话框 -->
@@ -700,7 +627,7 @@ import OJSubmissionsSection from '@/components/teacher/OJSubmissionsSection.vue'
 import StudentManagementSection from '@/components/teacher/StudentManagementSection.vue'
 import StudentPlanProgressPanel from '@/components/teacher/StudentPlanProgressPanel.vue'
 import StudentPlanManagementPanel from '@/components/teacher/StudentPlanManagementPanel.vue'
-import UploadAnimationDialog from '@/components/teacher/Dialog/UploadAnimationDialog.vue'
+import AdminTestManagementSection from '@/components/admin/AdminTestManagementSection.vue'
 import Icon from '@/components/Icon.vue'
   
   // 路由
@@ -776,12 +703,6 @@ import Icon from '@/components/Icon.vue'
   const ojProblemsLoading = ref(false)
   const selectedOJLevel = ref<number | string | null>(null)
   
-  // 动画管理相关数据
-  const showUploadAnimationDialog = ref(false)
-  const teacherAnimations = ref<any[]>([])
-  const animationsLoading = ref(false)
-  
-  
   // 新学生表单数据
   const newStudent = reactive({
     username: '',
@@ -800,7 +721,7 @@ import Icon from '@/components/Icon.vue'
     { key: 'student-management', label: '学生管理' },
     { key: 'objective-submissions', label: '客观题提交' },
     { key: 'oj-submissions', label: 'OJ提交' },
-    { key: 'animation-management', label: '动画管理' }
+    { key: 'my-tests', label: '测试管理' }
   ]
 
   // 从侧边栏打开页面
@@ -814,8 +735,6 @@ import Icon from '@/components/Icon.vue'
     // 根据不同的section触发相应的数据加载
     if (sectionKey === 'student-management' && userInfo.value) {
       fetchStudents()
-    } else if (sectionKey === 'animation-management' && userInfo.value) {
-      fetchTeacherAnimations()
     }
     // 注意：objective-submissions 和 oj-submissions 的数据加载已移到各自的组件中
   }
@@ -1495,7 +1414,7 @@ import Icon from '@/components/Icon.vue'
     console.log('开始获取考试列表')
     examsLoading.value = true
     try {
-      const response = await axios.get(`${BASE_URL}/exams`)
+      const response = await axios.get(`${BASE_URL}/exams`, { params: { include_all: 1 } })
       console.log('获取考试列表API响应:', response.data)
       
       // 处理不同的响应格式
@@ -1539,7 +1458,7 @@ import Icon from '@/components/Icon.vue'
       if (selectedOJLevel.value) {
         params.level = selectedOJLevel.value
       }
-      
+      params.include_all = 1
       const response = await axios.get(`${BASE_URL}/oj/problems`, { params })
       console.log('获取OJ题目列表API响应:', response.data)
       
@@ -1774,50 +1693,6 @@ import Icon from '@/components/Icon.vue'
     }
   })
   
-  // 获取教师上传的动画列表
-  const fetchTeacherAnimations = async () => {
-    if (!userInfo.value) return
-    
-    animationsLoading.value = true
-    try {
-      const response = await axios.get(`${BASE_URL}/teacher/${userInfo.value.id}/animations`)
-      if (response.data.success) {
-        teacherAnimations.value = response.data.data || []
-      }
-    } catch (error: any) {
-      console.error('获取动画列表失败:', error)
-      alert('获取动画列表失败: ' + (error.response?.data?.error || error.message))
-    } finally {
-      animationsLoading.value = false
-    }
-  }
-  
-  // 删除动画
-  const deleteAnimation = async (animationId: number) => {
-    if (!userInfo.value) return
-    
-    if (!confirm('确定要删除这个动画吗？此操作不可恢复。')) {
-      return
-    }
-    
-    try {
-      const response = await axios.delete(`${BASE_URL}/teacher/${userInfo.value.id}/animations/${animationId}`)
-      if (response.data.success) {
-        showSuccess('动画删除成功！')
-        await fetchTeacherAnimations()
-      } else {
-        alert('删除失败: ' + (response.data.error || '未知错误'))
-      }
-    } catch (error: any) {
-      console.error('删除动画失败:', error)
-      alert('删除失败: ' + (error.response?.data?.error || error.message))
-    }
-  }
-  
-  // 处理动画上传成功
-  const handleAnimationUploadSuccess = () => {
-    fetchTeacherAnimations()
-  }
   </script>
   
   <style scoped>
@@ -3989,103 +3864,4 @@ import Icon from '@/components/Icon.vue'
     }
   }
   
-  /* 动画管理样式 */
-  .student-management-main .table-container .animations-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    gap: 24px;
-    padding: 16px;
-  }
-  
-  .animation-card {
-    background: linear-gradient(135deg, #ffffff 0%, #e0f2fe 100%);
-    border: 5px solid #1e90ff;
-    border-radius: 20px;
-    overflow: hidden;
-    box-shadow: 0 8px 24px rgba(30, 144, 255, 0.2);
-    transition: all 0.3s ease;
-  }
-  
-  .animation-card:hover {
-    transform: translateY(-6px) scale(1.02);
-    box-shadow: 0 16px 40px rgba(30, 144, 255, 0.4);
-    border-color: #0c7cd5;
-    border-width: 6px;
-  }
-  
-  .animation-card-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 20px;
-    background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
-    border-bottom: 3px solid #1e90ff;
-  }
-  
-  .animation-icon {
-    width: 40px;
-    height: 40px;
-    background: linear-gradient(135deg, rgba(30, 144, 255, 0.15), rgba(56, 189, 248, 0.15));
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #1e90ff;
-    border: 2px solid rgba(30, 144, 255, 0.3);
-    flex-shrink: 0;
-  }
-  
-  .animation-title {
-    flex: 1;
-    margin: 0;
-    font-size: 16px;
-    font-weight: 700;
-    color: #1e293b;
-  }
-  
-  .btn-delete-animation {
-    background: #fee2e2;
-    border: none;
-    color: #dc2626;
-    padding: 8px;
-    border-radius: 8px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s ease;
-  }
-  
-  .btn-delete-animation:hover {
-    background: #fecaca;
-    transform: scale(1.1);
-  }
-  
-  .animation-card-body {
-    padding: 20px;
-  }
-  
-  .animation-description {
-    margin: 0 0 16px 0;
-    color: #64748b;
-    font-size: 14px;
-    line-height: 1.6;
-  }
-  
-  .animation-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-  
-  .meta-item {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 12px;
-    color: #64748b;
-    background: #f8fafc;
-    padding: 4px 8px;
-    border-radius: 6px;
-  }
   </style>
