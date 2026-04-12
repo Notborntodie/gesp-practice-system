@@ -100,15 +100,6 @@
                 >
                   下一题 ▶
                 </button>
-                <button 
-                  @click="generateExplanation(currentQuestionIndex)" 
-                  class="nav-btn-horizontal nav-btn-ai"
-                  :disabled="generatingExplanation"
-                  title="AI生成解析"
-                >
-                  <span v-if="generatingExplanation" class="loading-spinner">⏳</span>
-                  <span v-else>🤖 AI解析</span>
-                </button>
               </div>
             </div>
             
@@ -274,25 +265,12 @@
                   <h5>答案设置</h5>
                   <div class="form-group">
                     <label>正确答案：</label>
-                    <div class="answer-input-group">
-                      <input 
-                        v-model="currentQuestion.correct_answer" 
-                        required 
-                        placeholder="如：A" 
-                        @input="onAnswerChange"
+                      <input
+                        v-model="currentQuestion.correct_answer"
+                        required
+                        placeholder="如：A"
+                        @input="markAsEdited"
                       />
-                      <button 
-                        type="button" 
-                        @click="generateExplanation(currentQuestionIndex)" 
-                        class="btn btn-ai"
-                        :disabled="generatingExplanation || !currentQuestion.correct_answer"
-                        title="AI生成解析"
-                      >
-                        <span v-if="generatingExplanation" class="loading-spinner">⏳</span>
-                        <span v-else>🤖</span>
-                        {{ generatingExplanation ? '生成中...' : 'AI解析' }}
-                      </button>
-                    </div>
                   </div>
                   <div class="form-group">
                     <label>解释说明：</label>
@@ -398,7 +376,7 @@
   />
 </template>
 
-<script setup lang="ts">import { BASE_URL, API_SERVER_BASE, AI_API_BASE_URL, normalizeImageUrl } from '@/config/api'
+<script setup lang="ts">import { BASE_URL, API_SERVER_BASE, normalizeImageUrl } from '@/config/api'
 
 function getImageUrl(url: string | undefined): string {
   if (!url || !url.trim()) return ''
@@ -477,10 +455,6 @@ const collapsedLevels = ref<{ [key: number]: boolean }>({
 // 成功提示相关
 const showSuccessMessage = ref(false)
 const successMessage = ref('')
-
-// AI生成解析相关
-const generatingExplanation = ref(false)
-const answerChangeTimer = ref<ReturnType<typeof setTimeout> | undefined>(undefined)
 
 // 图片上传相关
 const isDragging = ref(false)
@@ -617,22 +591,6 @@ function markAsEdited() {
   }
 }
 
-// 监听答案变化
-function onAnswerChange() {
-  if (currentQuestion.value) {
-    markAsEdited()
-    // 延迟自动生成解析，避免频繁调用
-    if (answerChangeTimer.value) {
-      clearTimeout(answerChangeTimer.value)
-    }
-    answerChangeTimer.value = setTimeout(() => {
-      if (currentQuestion.value && currentQuestion.value.correct_answer && currentQuestion.value.question_text) {
-        autoGenerateExplanation(currentQuestionIndex.value)
-      }
-    }, 1000) // 1秒后自动生成
-  }
-}
-
 // 获取知识点列表
 async function fetchKnowledgePoints() {
   try {
@@ -702,72 +660,6 @@ async function saveAllQuestions() {
     alert('保存失败: ' + errorMessage)
   } finally {
     saving.value = false
-  }
-}
-
-// AI生成解析方法
-async function generateExplanation(questionIndex: number) {
-  const question = questions.value[questionIndex]
-  if (!question || !question.correct_answer) {
-    alert('请先设置正确答案')
-    return
-  }
-
-  generatingExplanation.value = true
-  try {
-    const requestData = {
-      question: {
-        question_text: question.question_text,
-        question_type: question.question_type || 'text',
-        question_code: question.question_code || '',
-        correct_answer: question.correct_answer,
-        explanation: question.explanation || '',
-        level: question.level || 3,
-        difficulty: question.difficulty || 'medium',
-        options: question.options || []
-      }
-    }
-
-    const response = await fetch(`${AI_API_BASE_URL}/generate-explanation`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestData)
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    const result = await response.json()
-    
-    if (result.status === 'success' && result.explanation) {
-      question.explanation = result.explanation
-      markAsEdited()
-      
-      // 不再显示弹窗提示，只在控制台输出
-      console.log(`第${questionIndex + 1}题解析生成成功！`)
-    } else {
-      throw new Error(result.error || '生成解析失败')
-    }
-    
-  } catch (error) {
-    console.error('生成解析失败:', error)
-    alert(`生成解析失败: ${error instanceof Error ? error.message : '未知错误'}`)
-  } finally {
-    generatingExplanation.value = false
-  }
-}
-
-// 自动生成解析（在答案修改后调用）
-async function autoGenerateExplanation(questionIndex: number) {
-  const question = questions.value[questionIndex]
-  if (question && question.correct_answer && question.question_text) {
-    // 延迟一点时间再生成，避免频繁调用
-    setTimeout(() => {
-      generateExplanation(questionIndex)
-    }, 500)
   }
 }
 
@@ -1315,18 +1207,6 @@ watch(() => props.selectedQuestions, () => {
   box-shadow: none;
 }
 
-.nav-btn-horizontal.nav-btn-ai {
-  background: linear-gradient(90deg, #8b5cf6 0%, #7c3aed 100%);
-  color: white;
-  border-color: #8b5cf6;
-}
-
-.nav-btn-horizontal.nav-btn-ai:hover:not(:disabled) {
-  background: linear-gradient(90deg, #7c3aed 0%, #6d28d9 100%);
-  border-color: #7c3aed;
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.25);
-}
-
 .question-edit-form {
   flex: 1;
   overflow-y: auto;
@@ -1576,29 +1456,6 @@ watch(() => props.selectedQuestions, () => {
   flex: 1;
 }
 
-.btn-ai {
-  background: linear-gradient(90deg, #8b5cf6 0%, #a855f7 100%);
-  color: white;
-  border: none;
-  box-shadow: 0 2px 8px 0 rgba(139, 92, 246, 0.10);
-  transition: background 0.2s, box-shadow 0.2s;
-  white-space: nowrap;
-  min-width: 100px;
-}
-
-.btn-ai:hover:not(:disabled) {
-  background: linear-gradient(90deg, #7c3aed 0%, #9333ea 100%);
-  box-shadow: 0 4px 12px 0 rgba(139, 92, 246, 0.20);
-  transform: translateY(-1px);
-}
-
-.btn-ai:disabled {
-  background: #9ca3af;
-  color: #fff;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
 
 .knowledge-points-selection {
   display: grid;
@@ -1845,10 +1702,6 @@ watch(() => props.selectedQuestions, () => {
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
-}
-
-.loading-spinner {
-  animation: spin 1s linear infinite;
 }
 
 @keyframes spin {

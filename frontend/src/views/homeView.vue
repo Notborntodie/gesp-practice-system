@@ -95,7 +95,7 @@
                     <div class="link-grid">
                       <div class="link-item">
                         <div class="link-icon">💻</div>
-                        <h4>GESP编程题</h4>
+                        <h4>编程题库</h4>
                         <p>练习编程实现题目，提升编程能力</p>
                         <button class="link-button" @click="goToProgramming">
                           开始练习
@@ -103,7 +103,7 @@
                       </div>
                       <div class="link-item">
                         <div class="link-icon">📝</div>
-                        <h4>GESP客观题</h4>
+                        <h4>客观题库</h4>
                         <p>练习选择题和判断题，巩固理论知识</p>
                         <button class="link-button" @click="goToObjective">
                           开始练习

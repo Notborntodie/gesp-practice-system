@@ -19,14 +19,23 @@
     <div class="filters">
       <div class="filter-group">
         <label>搜索考试：</label>
-        <input 
-          v-model="searchQuery" 
-          type="text" 
-          placeholder="搜索考试名称..." 
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="搜索考试名称..."
           class="filter-input"
         />
       </div>
       <div class="filter-group">
+        <label>题目来源：</label>
+        <select v-model="filterCategory" class="filter-select">
+          <option value="">全部来源</option>
+          <option v-for="t in questionTypeStore.allTypes.value" :key="t.name" :value="t.name">
+            {{ t.display_name || t.name }}
+          </option>
+        </select>
+      </div>
+      <div class="filter-group" v-if="filterCategory === '' || filterCategory === 'GESP'">
         <label>级别筛选：</label>
         <select v-model="filterLevel" class="filter-select">
           <option value="">全部</option>
@@ -63,6 +72,7 @@
           <tr>
             <th>序号</th>
             <th>考试名称</th>
+            <th>题目来源</th>
             <th>级别</th>
             <th>类型</th>
             <th>题目数量</th>
@@ -83,7 +93,13 @@
               </div>
             </td>
             <td>
-              <span class="level-badge">{{ getLevelText(exam.level || 1) }}</span>
+              <span class="category-badge" :class="`category-${(exam.category || 'GESP').toLowerCase()}`">
+                {{ getCategoryText(exam.category || 'GESP') }}
+              </span>
+            </td>
+            <td>
+              <span v-if="(exam.category || 'GESP') === 'GESP'" class="level-badge">{{ getLevelText(exam.level || 1) }}</span>
+              <span v-else class="no-level">-</span>
             </td>
             <td>
               <span class="type-badge" :class="`type-${exam.type || '真题'}`">
@@ -99,9 +115,6 @@
             </td>
             <td @click.stop>
               <div class="action-buttons">
-                <button @click="viewExamDetails(exam.id)" class="btn-action btn-view" title="查看详情">
-                  <Icon name="eye" :size="18" />
-                </button>
                 <button @click="openExportDialog(exam)" class="btn-action btn-export" title="导出">
                   <Icon name="download" :size="18" />
                 </button>
@@ -116,7 +129,7 @@
           </tr>
           <!-- 展开的详细信息行 -->
           <tr v-for="examDetail in filteredExams.filter(exam => expandedExams.includes(exam.id))" :key="`detail-${examDetail.id}`" class="detail-row">
-            <td colspan="8">
+            <td colspan="9">
               <div class="exam-details">
                 <!-- 考试基本信息 -->
                 <div class="detail-section">
@@ -128,7 +141,11 @@
                     </div>
                     <div class="info-item">
                       <span class="info-label">考试等级:</span>
-                      <span class="info-value">{{ getLevelText(examDetail.level) }}</span>
+                      <span class="info-value">{{ (examDetail.category || 'GESP') === 'GESP' ? getLevelText(examDetail.level) : '-' }}</span>
+                    </div>
+                    <div class="info-item">
+                      <span class="info-label">题目来源:</span>
+                      <span class="info-value">{{ getCategoryText(examDetail.category || 'GESP') }}</span>
                     </div>
                     <div class="info-item">
                       <span class="info-label">考试类型:</span>
@@ -255,6 +272,7 @@ import SuccessMessageDialog from './Dialog/SuccessMessageDialog.vue'
 import ExportDialog from './Dialog/ExportDialog.vue'
 import EditExamDialog from './Dialog/EditExamDialog.vue'
 import { useExamStore } from '../../stores/examStore'
+import { useQuestionTypeStore } from '@/stores/questionTypeStore'
 import docxExportService from '../../services/docxExportService'
 import Icon from '@/components/Icon.vue'
 
@@ -269,9 +287,11 @@ const props = withDefaults(defineProps<Props>(), {
 
 // 使用考试store
 const examStore = useExamStore()
+const questionTypeStore = useQuestionTypeStore()
 
 // 本地状态
 const searchQuery = ref('')
+const filterCategory = ref('')
 const filterLevel = ref('')
 const filterType = ref('')
 const expandedExams = ref<number[]>([])
@@ -313,7 +333,12 @@ async function fetchExams(forceRefresh = false) {
 // 过滤考试
 const filteredExams = computed(() => {
   let list = [...examStore.exams.value] // 创建副本避免修改原始数据
-  
+
+  // 按题目来源过滤
+  if (filterCategory.value) {
+    list = list.filter(exam => (exam.category || 'GESP') === filterCategory.value)
+  }
+
   // 按等级过滤
   if (filterLevel.value) {
     list = list.filter(exam => String(exam.level || 1) === filterLevel.value)
@@ -490,6 +515,12 @@ function getLevelText(level: number) {
   return `GESP ${level}级`
 }
 
+// 分类文本 — 从 questionTypeStore 动态获取
+function getCategoryText(category: string) {
+  const type = questionTypeStore.allTypes.value.find(t => t.name === category)
+  return type?.display_name || category
+}
+
 // 类型文本
 function getTypeText(type: string) {
   return type || '真题'
@@ -533,11 +564,6 @@ async function refreshExams() {
   }
 }
 
-// 查看考试详情（展开/收起）
-function viewExamDetails(examId: number) {
-  toggleExamExpansion(examId)
-}
-
 // 监听刷新触发器变化
 watch(() => props.refreshTrigger, async (newTrigger, oldTrigger) => {
   if (newTrigger && newTrigger !== oldTrigger && newTrigger > 0) {
@@ -549,6 +575,7 @@ watch(() => props.refreshTrigger, async (newTrigger, oldTrigger) => {
 
 onMounted(async () => {
   console.log('📦 [ExamManagement] 组件挂载，初始化数据')
+  questionTypeStore.fetchQuestionTypes()
   // 只在没有缓存数据时才显示loading状态
   if (!examStore.hasExams.value) {
     await fetchExams()
@@ -730,6 +757,27 @@ onMounted(async () => {
   font-weight: 600;
 }
 
+.category-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.category-gesp { background: #dbeafe; color: #1d4ed8; }
+.category-csp_j { background: #fef3c7; color: #92400e; }
+.category-csp_s { background: #fce7f3; color: #9d174d; }
+.category-noi_p { background: #e0e7ff; color: #3730a3; }
+.category-noi_a { background: #fee2e2; color: #991b1b; }
+.category-noi_ioi { background: #ede9fe; color: #5b21b6; }
+.category-other { background: #f3f4f6; color: #374151; }
+
+.no-level {
+  color: #9ca3af;
+  font-style: italic;
+}
+
 .type-badge {
   display: inline-block;
   padding: 4px 10px;
@@ -772,16 +820,6 @@ onMounted(async () => {
   justify-content: center;
   gap: 4px;
   font-size: 14px;
-}
-
-.btn-view {
-  background: #0ea5e9;
-  color: white;
-}
-
-.btn-view:hover {
-  background: #0284c7;
-  transform: translateY(-1px);
 }
 
 .btn-export {

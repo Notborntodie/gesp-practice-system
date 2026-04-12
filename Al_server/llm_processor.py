@@ -15,7 +15,7 @@ class LLMProcessor:
         self.api_url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
         self.model = model or os.getenv("LLM_MODEL", "qwen-plus-latest")
         self.max_tokens = max_tokens
-        self.max_input_length = 3000
+        self.max_input_length = 2000  # 减小片段大小，从3000改为2000
     
     def create_split_prompt(self, pdf_text: str) -> str:
         """创建分割题目的prompt"""
@@ -79,29 +79,29 @@ PDF文本：
     
     def call_api(self, prompt: str) -> str:
         """调用DashScope API"""
+        return self.call_api_with_messages("你是一个专业的题目解析助手。", prompt)
+
+    def call_api_with_messages(self, system_content: str, user_content: str) -> str:
+        """使用自定义 system 与 user 消息调用 API（用于 Agent 等场景）"""
         try:
             headers = {
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.api_key}"
             }
-            
             data = {
                 "model": self.model,
                 "messages": [
-                    {"role": "system", "content": "你是一个专业的题目解析助手。"},
-                    {"role": "user", "content": prompt}
+                    {"role": "system", "content": system_content},
+                    {"role": "user", "content": user_content}
                 ],
                 "temperature": 0,
             }
-            
-            response = requests.post(self.api_url, headers=headers, json=data, timeout=120)
+            response = requests.post(self.api_url, headers=headers, json=data, timeout=180)
             response.raise_for_status()
-            
             result = response.json()
             return result["choices"][0]["message"]["content"]
-            
         except Exception as e:
-            raise Exception(f"调用DashScope API失败: {str(e)}")
+            raise Exception(f"调用API失败: {str(e)}")
     
     def parse_json_response(self, response: str) -> List[Dict[str, Any]]:
         """解析JSON响应"""
@@ -148,11 +148,11 @@ PDF文本：
     def fast_heuristic_split(self, text: str) -> List[Dict[str, Any]]:
         """快速启发式分割"""
         import re
-        
-        # 分割参数
-        MIN_SEGMENT_SIZE = 800
-        MAX_SEGMENT_SIZE = 3000
-        TARGET_SEGMENT_SIZE = 2000
+
+        # 分割参数 - 优化为更小的片段以减少超时
+        MIN_SEGMENT_SIZE = 500  # 从800改为500
+        MAX_SEGMENT_SIZE = 2000  # 从3000改为2000
+        TARGET_SEGMENT_SIZE = 1500  # 从2000改为1500
         
         segments = []
         current_segment = ""

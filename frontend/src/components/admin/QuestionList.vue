@@ -10,7 +10,7 @@
       </div>
       <div class="action-buttons">
         <button @click="openCreateExamDialog" class="btn btn-primary">
-          <Icon name="plus" :size="18" /> 创建考试
+          <Icon name="plus" :size="18" /> 创建练习
         </button>
         <button @click="refreshQuestions" class="btn btn-secondary" title="刷新题目列表">
           <Icon name="refresh-cw" :size="18" /> 刷新
@@ -717,8 +717,13 @@ async function refreshQuestions() {
   }
 }
 
-// 打开创建考试弹窗
+// 打开创建练习弹窗
 function openCreateExamDialog() {
+  if (selectedQuestions.value.length === 0) {
+    showSuccessMessage.value = true
+    successMessage.value = '请先选择题目，再创建练习'
+    return
+  }
   showCreateExamDialog.value = true
 }
 
@@ -727,10 +732,10 @@ function closeCreateExamDialog() {
   showCreateExamDialog.value = false
 }
 
-// 处理考试创建成功
+// 处理练习创建成功
 function handleExamCreated(examId: number) {
   showSuccessMessage.value = true
-  successMessage.value = '考试创建成功！'
+  successMessage.value = '练习创建成功！'
   clearSelection()
 }
 

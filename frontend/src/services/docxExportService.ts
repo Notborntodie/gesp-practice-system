@@ -332,7 +332,7 @@ class DocxExportService {
   }
 
   /**
-   * 创建考试信息部分
+   * 创建练习信息部分
    */
   private createExamInfoSection(exam: Exam): Paragraph[] {
     // 确保questions是数组

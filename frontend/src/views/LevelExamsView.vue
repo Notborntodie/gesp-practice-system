@@ -1,45 +1,21 @@
 <template>
   <div class="level-exams-container">
-    <!-- 左侧边栏：考试类型选择器 -->
+    <!-- 左侧边栏：题目来源 + 等级 -->
     <div class="sidebar-left">
-      <div class="sidebar-title">{{ getLevelText(level) }}</div>
-      <nav class="type-nav-vertical">
-              <button 
-                v-for="type in examTypes" 
-                :key="type.key"
-                @click="selectExamType(type)"
-                :class="['type-menu-item', { active: selectedExamType === type.key }]"
-              >
-          <Icon :name="getTypeIcon(type.key)" :size="18" />
-          <span>{{ type.label }}</span>
-              </button>
-            </nav>
-      
-      <!-- 等级切换 -->
-      <div class="level-switcher">
-        <div class="level-switcher-header">
-          <Icon name="chevron-down" :size="36" class="level-arrow-icon" />
-          <div class="level-switcher-title">切换等级</div>
-        </div>
-        <div class="level-grid">
-          <div 
-            class="level-item level-item-all"
-            :class="{ 'active': level === 0 }"
-            @click="switchLevel(0)"
-          >
-            全
-          </div>
-          <div 
-            v-for="lvl in levels" 
-            :key="lvl"
-            class="level-item"
-            :class="{ 'active': level === lvl }"
-            @click="switchLevel(lvl)"
-          >
-            {{ lvl }}
-          </div>
-        </div>
-      </div>
+      <div class="sidebar-title">{{ getSidebarTitle() }}</div>
+
+      <!-- 题目来源筛选 -->
+      <nav class="category-nav-vertical">
+        <button
+          v-for="t in categoryOptions"
+          :key="t.name"
+          @click="selectCategory(t.name)"
+          :class="['category-menu-item', { active: selectedCategory === t.name }]"
+        >
+          <Icon :name="t.icon" :size="16" />
+          <span>{{ t.display_name || t.name }}</span>
+        </button>
+      </nav>
     </div>
 
     <!-- 主内容区域 -->
@@ -55,11 +31,78 @@
         </div>
       </div>
 
+      <!-- 二级导航栏：等级 + 考试类型 + 搜索（仅 GESP） -->
+      <div class="sub-nav-bar" v-if="selectedCategory === 'GESP'">
+        <div class="sub-nav-tabs">
+          <button
+            class="sub-nav-tab level-tab"
+            :class="{ active: level === 0 }"
+            @click="switchLevel(0)"
+          >全部</button>
+          <button
+            v-for="lvl in levels"
+            :key="lvl"
+            class="sub-nav-tab level-tab"
+            :class="{ active: level === lvl }"
+            @click="switchLevel(lvl)"
+          >{{ lvl }}级</button>
+          <div class="sub-nav-divider"></div>
+          <button
+            v-for="type in examTypes"
+            :key="type.key"
+            @click="selectExamType(type)"
+            :class="['sub-nav-tab', { active: selectedExamType === type.key }]"
+          >
+            <Icon :name="getTypeIcon(type.key)" :size="16" />
+            <span>{{ type.label }}</span>
+          </button>
+        </div>
+        <div class="sub-nav-search">
+          <Icon name="search" :size="16" />
+          <input
+            v-model="searchKeyword"
+            type="text"
+            placeholder="搜索考试名称..."
+            class="search-input"
+          />
+          <button v-if="searchKeyword" @click="searchKeyword = ''" class="search-clear">
+            <Icon name="x" :size="14" />
+          </button>
+        </div>
+      </div>
+
+      <!-- 非GESP：仅搜索栏 -->
+      <div class="sub-nav-bar" v-else>
+        <div class="sub-nav-tabs">
+          <button
+            v-for="type in examTypes"
+            :key="type.key"
+            @click="selectExamType(type)"
+            :class="['sub-nav-tab', { active: selectedExamType === type.key }]"
+          >
+            <Icon :name="getTypeIcon(type.key)" :size="16" />
+            <span>{{ type.label }}</span>
+          </button>
+        </div>
+        <div class="sub-nav-search">
+          <Icon name="search" :size="16" />
+          <input
+            v-model="searchKeyword"
+            type="text"
+            placeholder="搜索考试名称..."
+            class="search-input"
+          />
+          <button v-if="searchKeyword" @click="searchKeyword = ''" class="search-clear">
+            <Icon name="x" :size="14" />
+          </button>
+        </div>
+      </div>
+
       <div v-if="loading" class="loading-state">
         <Icon name="loader-2" :size="24" spin />
         <p>正在加载考试列表...</p>
       </div>
-      
+
       <div v-else-if="filteredExams.length === 0" class="empty-state">
         <Icon name="inbox" :size="48" />
         <p>该等级暂时没有可用的练习</p>
@@ -71,6 +114,7 @@
           <thead>
             <tr>
               <th>考试名称</th>
+              <th>题目来源</th>
               <th>类型</th>
               <th>题目数</th>
               <th>描述</th>
@@ -88,6 +132,11 @@
           <tbody>
             <tr v-for="exam in filteredExams" :key="exam.id">
               <td class="exam-name-cell">{{ exam.name }}</td>
+              <td>
+                <span class="category-badge" :class="'category-' + (exam.category || 'GESP').toLowerCase()">
+                  {{ getCategoryText(exam.category) }}
+                </span>
+              </td>
               <td>
                 <span class="type-badge" :class="`type-${exam.type || '真题'}`">
                   {{ getTypeText(exam.type) }}
@@ -148,12 +197,15 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import Icon from '@/components/Icon.vue'
+import { useQuestionTypeStore } from '@/stores/questionTypeStore'
 
 const route = useRoute()
 const router = useRouter()
+const questionTypeStore = useQuestionTypeStore()
 
 // 从路由参数获取等级，默认显示全部等级(0)
 const level = ref(parseInt(route.params.level as string) || 0)
+const selectedCategory = ref('')
 
 // 等级列表 (1-8，加上"全"刚好9个，3x3九宫格)
 const levels = ref([1, 2, 3, 4, 5, 6, 7, 8])
@@ -164,10 +216,23 @@ let toastTimer: ReturnType<typeof setTimeout> | null = null
 
 // 数据状态
 const exams = ref<any[]>([])
-const filteredExams = ref<any[]>([])
+const filteredExams = computed(() => {
+  const result = exams.value.filter(exam => {
+    const matchType = exam.type === selectedExamType.value
+    const matchSearch = !searchKeyword.value || (exam.name && exam.name.toLowerCase().includes(searchKeyword.value.toLowerCase()))
+    return matchType && matchSearch
+  })
+  result.sort((a, b) => {
+    const timeA = getExamTimeForSort(a)
+    const timeB = getExamTimeForSort(b)
+    return timeB.getTime() - timeA.getTime()
+  })
+  return result
+})
 const loading = ref(false)
 const selectedExam = ref<any>(null)
 const selectedExamType = ref('真题')
+const searchKeyword = ref('')
 const isBreathing = ref(false)
 
 
@@ -237,6 +302,9 @@ async function fetchExams() {
   loading.value = true
   try {
     const params: any = {}
+    if (selectedCategory.value) {
+      params.category = selectedCategory.value
+    }
     if (level.value !== 0) {
       params.level = level.value
     }
@@ -246,8 +314,6 @@ async function fetchExams() {
     }
     const response = await axios.get(`${BASE_URL}/exams`, { params })
     exams.value = response.data
-    // 初始化过滤后的考试列表
-    filterExams()
   } catch (error: any) {
     console.error('获取考试列表失败:', error)
     alert('获取考试列表失败: ' + (error.response?.data?.error || error.message))
@@ -256,29 +322,9 @@ async function fetchExams() {
   }
 }
 
-// 根据类型过滤考试
-function filterExams() {
-  filteredExams.value = exams.value.filter(exam => exam.type === selectedExamType.value)
-  
-  // 按时间排序，最新的在前面
-  filteredExams.value.sort((a, b) => {
-    const timeA = getExamTimeForSort(a)
-    const timeB = getExamTimeForSort(b)
-    return timeB.getTime() - timeA.getTime() // 降序排列，最新的在前
-  })
-  
-  // 重置选中的考试
-  if (filteredExams.value.length > 0) {
-    selectedExam.value = filteredExams.value[0]
-  } else {
-    selectedExam.value = null
-  }
-}
-
 // 选择考试类型
 function selectExamType(type: any) {
   selectedExamType.value = type.key
-  filterExams()
 }
 
 // 选择考试
@@ -294,10 +340,55 @@ function selectExam(exam: any) {
   }, 6000)
 }
 
-// 等级文本
-function getLevelText(level: number) {
-  if (level === 0) return '全部等级'
-  return `GESP ${level}级`
+// 分类图标映射
+const categoryIconMap: Record<string, string> = {
+  '': 'layers',
+  'GESP': 'award',
+  'CSP_J': 'shield',
+  'CSP_S': 'shield-check',
+  'NOI_P': 'trophy',
+  'NOI_A': 'crown',
+  'NOI_IOI': 'globe',
+  'LEETCODE': 'code',
+  'Other': 'file-question'
+}
+
+// 分类选项（含"全部"）
+const categoryOptions = computed(() => {
+  const types = questionTypeStore.allTypes.value.map(t => ({
+    ...t,
+    icon: categoryIconMap[t.name] || 'tag'
+  }))
+  return [{ name: '', display_name: '全部', icon: 'layers' }, ...types]
+})
+
+// 侧边栏标题
+function getSidebarTitle() {
+  if (selectedCategory.value) {
+    const type = questionTypeStore.allTypes.value.find(t => t.name === selectedCategory.value)
+    const catText = type?.display_name || selectedCategory.value
+    if (selectedCategory.value === 'GESP' && level.value > 0) {
+      return `${catText} ${level.value}级`
+    }
+    return catText
+  }
+  if (level.value > 0) return `GESP ${level.value}级`
+  return '全部练习'
+}
+
+// 获取分类显示文本
+function getCategoryText(category: string) {
+  const type = questionTypeStore.allTypes.value.find(t => t.name === category)
+  return type?.display_name || category || 'GESP'
+}
+
+// 选择分类
+function selectCategory(name: string) {
+  selectedCategory.value = name
+  if (name && name !== 'GESP') {
+    level.value = 0
+  }
+  fetchExams()
 }
 
 // 类型文本
@@ -412,7 +503,7 @@ function goBack() {
   router.push('/select-level')
 }
 
-// 跳转到创建考试页面
+// 跳转到创建练习页面
 function goToCreateExam() {
   router.push('/admin/create-exam')
 }
@@ -487,6 +578,7 @@ function switchLevel(newLevel: number) {
 }
 
 onMounted(() => {
+  questionTypeStore.fetchQuestionTypes()
   // 从 sessionStorage 读取当前会话选中的等级
   const sessionLevel = sessionStorage.getItem('levelExamsSelectedLevel')
   if (sessionLevel !== null) {
@@ -543,38 +635,109 @@ onMounted(() => {
   margin-bottom: 4px;
 }
 
-.type-nav-vertical {
+/* 二级导航栏 */
+.sub-nav-bar {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  background: white;
+  border-radius: 12px;
+  border: 1.5px solid #e2e8f0;
+  padding: 6px 16px;
+  margin-bottom: 12px;
+}
+
+.sub-nav-tabs {
+  display: flex;
   gap: 4px;
 }
 
-.type-menu-item {
+.sub-nav-tab {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
+  gap: 6px;
+  padding: 8px 16px;
   background: transparent;
   border: none;
-  color: rgba(255,255,255,0.7);
-  font-size: 13px;
+  color: #64748b;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   border-radius: 8px;
-  transition: all 0.3s ease;
-  text-align: left;
+  transition: all 0.2s ease;
 }
 
-.type-menu-item:hover {
-  background: rgba(255,255,255,0.1);
+.sub-nav-tab:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.sub-nav-tab.active {
+  background: linear-gradient(135deg, #5ba3d9 0%, #7ec8e3 100%);
   color: white;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(91, 163, 217, 0.3);
 }
 
-.type-menu-item.active {
-  background: rgba(255,255,255,0.95);
-  color: #1e90ff;
-  font-weight: 600;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+.sub-nav-divider {
+  width: 1px;
+  background: #e2e8f0;
+  margin: 4px 6px;
+  flex-shrink: 0;
+}
+
+.sub-nav-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 12px;
+  min-width: 200px;
+  transition: all 0.2s ease;
+}
+
+.sub-nav-search:focus-within {
+  border-color: #5ba3d9;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(91, 163, 217, 0.1);
+}
+
+.sub-nav-search :deep(.lucide-icon) {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.search-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: #1e293b;
+  width: 100%;
+}
+
+.search-input::placeholder {
+  color: #94a3b8;
+}
+
+.search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.search-clear:hover {
+  color: #64748b;
+  background: #e2e8f0;
 }
 
 /* 主内容区域 */
@@ -685,10 +848,64 @@ onMounted(() => {
   background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
   color: white;
 }
-.type-专项 { 
+.type-专项 {
   background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
   color: white;
 }
+
+/* 来源导航 */
+.category-nav-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid rgba(255,255,255,0.15);
+  padding-top: 8px;
+}
+
+.category-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.7);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  text-align: left;
+}
+
+.category-menu-item:hover {
+  background: rgba(255,255,255,0.1);
+  color: white;
+}
+
+.category-menu-item.active {
+  background: rgba(255,255,255,0.95);
+  color: #1e90ff;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.category-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.category-gesp { background: #dbeafe; color: #1e40af; }
+.category-csp_j { background: #dcfce7; color: #166534; }
+.category-csp_s { background: #dcfce7; color: #166534; }
+.category-noi_p { background: #fef3c7; color: #92400e; }
+.category-noi_a { background: #fef3c7; color: #92400e; }
+.category-noi_ioi { background: #fce7f3; color: #9d174d; }
+.category-leetcode { background: #f3e8ff; color: #6b21a8; }
+.category-other { background: #f1f5f9; color: #475569; }
 
 /* 操作按钮 */
 .action-buttons {
@@ -798,73 +1015,6 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
-/* 侧边栏等级切换 */
-.level-switcher {
-  margin-top: auto;
-  padding-top: 16px;
-  border-top: 1px solid rgba(255,255,255,0.2);
-}
-
-.level-switcher-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.level-arrow-icon {
-  color: white;
-  animation: bounce 1.5s ease-in-out infinite;
-}
-
-@keyframes bounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(4px);
-  }
-}
-
-.level-switcher-title {
-  color: rgba(255,255,255,0.9);
-  font-size: 12px;
-  font-weight: 600;
-  text-align: center;
-}
-
-.level-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-}
-
-.level-item {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  aspect-ratio: 1;
-  background: rgba(255,255,255,0.15);
-  border-radius: 8px;
-  color: white;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.level-item:hover {
-  background: rgba(255,255,255,0.3);
-  transform: scale(1.05);
-}
-
-.level-item.active {
-  background: white;
-  color: #1e90ff;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-}
-
 /* 响应式设计 */
 @media (max-width: 768px) {
   .sidebar-left {
@@ -872,19 +1022,35 @@ onMounted(() => {
     min-width: 60px;
     padding: 16px 8px;
   }
-  
+
   .sidebar-title {
     font-size: 12px;
     padding: 8px 0;
   }
 
-  .type-menu-item {
+  .category-menu-item {
     padding: 10px;
     justify-content: center;
   }
-  
-  .type-menu-item span {
+
+  .category-menu-item span {
     display: none;
+  }
+
+  .sub-nav-bar {
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .sub-nav-tabs {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .sub-nav-search {
+    width: 100%;
+    min-width: unset;
   }
 
   .main-content {
@@ -894,15 +1060,6 @@ onMounted(() => {
 
   .level-switcher-title {
     display: none;
-  }
-
-  .level-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 4px;
-  }
-  
-  .level-item {
-    font-size: 12px;
   }
 
   .exams-table th,

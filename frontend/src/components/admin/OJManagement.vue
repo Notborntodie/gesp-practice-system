@@ -3,6 +3,15 @@
     <!-- 筛选器 -->
     <div class="filters">
       <div class="filter-group">
+        <label>题目来源：</label>
+        <select v-model="selectedCategory" @change="fetchProblems" class="filter-select">
+          <option value="">全部</option>
+          <option v-for="t in questionTypeStore.allTypes.value" :key="t.name" :value="t.name">
+            {{ t.display_name || t.name }}
+          </option>
+        </select>
+      </div>
+      <div class="filter-group" v-if="selectedCategory === '' || selectedCategory === 'GESP'">
         <label>级别筛选：</label>
         <select v-model="selectedLevel" @change="fetchProblems" class="filter-select">
           <option value="">全部</option>
@@ -33,6 +42,7 @@
           <tr>
             <th>ID</th>
             <th>标题</th>
+            <th>题目来源</th>
             <th>级别</th>
             <th>发布日期</th>
             <th>提交数</th>
@@ -49,7 +59,13 @@
             <td>{{ problem.id }}</td>
             <td class="title-cell">{{ problem.title }}</td>
             <td>
-              <span class="level-badge">GESP {{ problem.level }}级</span>
+              <span class="category-badge" :class="'category-' + (problem.category || 'GESP').toLowerCase()">
+                {{ getCategoryText(problem.category) }}
+              </span>
+            </td>
+            <td v-if="selectedCategory === '' || selectedCategory === 'GESP'">
+              <span class="level-badge" v-if="problem.level">GESP {{ problem.level }}级</span>
+              <span class="no-level" v-else>-</span>
             </td>
             <td>{{ formatDate(problem.publish_date) }}</td>
             <td>{{ problem.total_submissions || 0 }}</td>
@@ -121,9 +137,12 @@ import axios from 'axios'
 import SingleOJUploadDialog from './Dialog/SingleOJUploadDialog.vue'
 import EditOJDialog from './Dialog/EditOJDialog.vue'
 import Icon from '@/components/Icon.vue'
+import { useQuestionTypeStore } from '@/stores/questionTypeStore'
 
 const router = useRouter()
+const questionTypeStore = useQuestionTypeStore()
 
+const selectedCategory = ref('')
 const selectedLevel = ref('')
 const problems = ref<any[]>([])
 const loading = ref(false)
@@ -134,6 +153,11 @@ const togglingId = ref<number | null>(null)
 
 function isBankVisible(problem: any): boolean {
   return problem.bank_visible !== undefined ? !!problem.bank_visible : true
+}
+
+function getCategoryText(category: string) {
+  const type = questionTypeStore.allTypes.value.find(t => t.name === category)
+  return type?.display_name || category
 }
 
 async function toggleBankVisible(problem: any) {
@@ -159,7 +183,11 @@ async function fetchProblems() {
       page: 1,
       pageSize: 100
     }
-    
+
+    if (selectedCategory.value) {
+      params.category = selectedCategory.value
+    }
+
     if (selectedLevel.value) {
       params.level = selectedLevel.value
     }
@@ -250,6 +278,7 @@ function handleEditSuccess() {
 }
 
 onMounted(() => {
+  questionTypeStore.fetchQuestionTypes()
   fetchProblems()
 })
 </script>
@@ -364,6 +393,27 @@ onMounted(() => {
   border-radius: 12px;
   font-size: 12px;
   font-weight: 600;
+}
+
+.category-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.category-gesp { background: #dbeafe; color: #1e40af; }
+.category-csp_j { background: #dcfce7; color: #166534; }
+.category-csp_s { background: #dcfce7; color: #166534; }
+.category-noi_p { background: #fef3c7; color: #92400e; }
+.category-noi_a { background: #fef3c7; color: #92400e; }
+.category-noi_ioi { background: #fce7f3; color: #9d174d; }
+.category-leetcode { background: #f3e8ff; color: #6b21a8; }
+.category-other { background: #f1f5f9; color: #475569; }
+
+.no-level {
+  color: #94a3b8;
 }
 
 .pass-rate {

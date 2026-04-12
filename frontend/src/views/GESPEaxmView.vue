@@ -24,7 +24,10 @@
             <!-- 考试标题 -->
             <div class="exam-title-section">
               <h2 class="exam-title">{{ examInfo.name || 'GESP 考试' }}</h2>
-              <span class="exam-level-badge">GESP {{ examInfo.level || 1 }}级</span>
+              <span class="exam-level-badge" v-if="examInfo.category === 'GESP' || !examInfo.category">GESP {{ examInfo.level || 1 }}级</span>
+              <span class="exam-category-badge" :class="'category-' + (examInfo.category || 'GESP').toLowerCase()">
+                {{ getCategoryText(examInfo.category) }}
+              </span>
               <!-- 自由练习状态标识 -->
               <span class="submission-mode-badge free-practice-badge" title="自由练习模式，可以随时练习">
                 <Icon name="zap" :size="14" />
@@ -86,7 +89,7 @@
             <div class="question-card-header">
               <div class="question-number">
                 <span class="number-badge">{{ currentQuestionIndex + 1 }}</span>
-                <span class="level-badge">GESP {{ currentQuestion.level }}级</span>
+                <span class="level-badge" v-if="examInfo.category === 'GESP' || !examInfo.category">GESP {{ currentQuestion.level }}级</span>
                 <span class="question-date" v-if="currentQuestion.question_date">
                   <Icon name="calendar" :size="16" />
                   <span>{{ formatDate(currentQuestion.question_date) }}</span>
@@ -443,6 +446,7 @@
 import { defineComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Icon from '@/components/Icon.vue'
+import { useQuestionTypeStore } from '@/stores/questionTypeStore'
 // 导入 highlight.js 库和样式
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github.css'
@@ -479,6 +483,7 @@ interface ExamInfo {
   id: number;
   name: string;
   level: number;
+  category: string;
   description: string;
   total_questions: number;
 }
@@ -538,6 +543,7 @@ export default defineComponent({
   data() {
     const router = useRouter();
     return {
+      questionTypeStore: useQuestionTypeStore(),
       BASE_URL: `${BASE_URL}`,
       EXAM_ID: null as number | null,
       loading: true,
@@ -646,9 +652,10 @@ export default defineComponent({
       taskId: this.taskId,
       fullUrl: window.location.href
     });
-    
+
     this.loadExamData();
-    
+    this.questionTypeStore.fetchQuestionTypes();
+
     // 添加浏览器返回键拦截
     this.setupBeforeUnload();
     
@@ -682,6 +689,10 @@ export default defineComponent({
     window.removeEventListener('exitExamRequest', this.handleExitExamRequest);
   },
   methods: {
+    getCategoryText(category: string) {
+      const type = this.questionTypeStore.allTypes.find((t: any) => t.name === category)
+      return type?.display_name || category || 'GESP'
+    },
     async loadExamData() {
       if (!this.EXAM_ID) {
         this.error = '无效的考试ID';
@@ -1503,6 +1514,22 @@ export default defineComponent({
   border: 1px solid rgba(255, 255, 255, 0.3);
   backdrop-filter: blur(10px);
 }
+
+.exam-category-badge {
+  padding: 6px 14px;
+  border-radius: 18px;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.exam-category-badge.category-gesp { background: rgba(59,130,246,0.2); color: #93c5fd; }
+.exam-category-badge.category-csp_j { background: rgba(34,197,94,0.2); color: #86efac; }
+.exam-category-badge.category-csp_s { background: rgba(34,197,94,0.2); color: #86efac; }
+.exam-category-badge.category-noi_p { background: rgba(245,158,11,0.2); color: #fcd34d; }
+.exam-category-badge.category-noi_a { background: rgba(245,158,11,0.2); color: #fcd34d; }
+.exam-category-badge.category-noi_ioi { background: rgba(236,72,153,0.2); color: #f9a8d4; }
+.exam-category-badge.category-leetcode { background: rgba(168,85,247,0.2); color: #d8b4fe; }
+.exam-category-badge.category-other { background: rgba(148,163,184,0.2); color: #cbd5e1; }
 
 /* 提交模式状态徽章样式 */
 .submission-mode-badge {

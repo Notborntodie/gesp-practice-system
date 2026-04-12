@@ -152,7 +152,7 @@ export const useExamStore = () => {
     return exams.value.filter(e => (e.type || '真题') === type)
   }
 
-  // 创建考试
+  // 创建练习
   const createExam = async (examData: any) => {
     try {
       const response = await axios.post(`${BASE_URL}/exams`, examData)
@@ -163,7 +163,7 @@ export const useExamStore = () => {
       
       return newExam
     } catch (error: any) {
-      console.error('创建考试失败:', error)
+      console.error('创建练习失败:', error)
       throw error
     }
   }

@@ -9,6 +9,7 @@
 | 模块 | 技术 |
 |------|------|
 | 前端 | Vue 3, TypeScript, Vite, Pinia, CodeMirror |
+| 微信小程序 | 微信小程序原生, TypeScript |
 | 后端 | Node.js, Express, MySQL, Redis |
 | 判题 | isolate 沙箱 |
 | AI 服务 | Python, FastAPI, DashScope (可选) |
@@ -18,6 +19,7 @@
 ```
 gespgrowplan/
 ├── frontend/         # Vue 前端
+├── miniprogram/      # 微信小程序（家长端）
 ├── backend_server/   # Node.js 后端 API
 ├── Al_server/        # PDF 题目提取、解析生成（可选）
 └── docs/             # 部署与配置文档
@@ -101,6 +103,7 @@ cd Al_server && ./start.sh
 ## 各模块说明
 
 - [frontend/README.md](frontend/README.md) — 前端开发与部署
+- [miniprogram/README.md](miniprogram/README.md) — 微信小程序（家长端）开发与部署
 - [backend_server/README.md](backend_server/README.md) — 后端 API 与部署
 - [Al_server/README.md](Al_server/README.md) — AI 服务说明
 

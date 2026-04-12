@@ -238,7 +238,7 @@
           取消
         </button>
         <button @click="createExam" class="btn btn-primary" :disabled="!canCreate">
-          {{ creating ? '创建中...' : '创建考试' }}
+          {{ creating ? '创建中...' : '创建练习' }}
         </button>
       </div>
     </div>
@@ -421,7 +421,7 @@ function validateForm() {
   return isValid
 }
 
-// 检查是否可以创建考试
+// 检查是否可以创建练习
 const canCreate = computed(() => {
   return examForm.value.name.trim() && 
          examForm.value.level && 
@@ -436,7 +436,7 @@ const isAllFilteredSelected = computed(() => {
   return filteredAvailableQuestions.value.every(q => isQuestionSelected(q.id))
 })
 
-// 创建考试
+// 创建练习
 async function createExam() {
   if (!validateForm()) return
 
@@ -465,8 +465,8 @@ async function createExam() {
     }, 2000)
     
   } catch (error: any) {
-    console.error('创建考试失败:', error)
-    alert('创建考试失败: ' + (error.response?.data?.error || error.message))
+    console.error('创建练习失败:', error)
+    alert('创建练习失败: ' + (error.response?.data?.error || error.message))
   } finally {
     creating.value = false
   }

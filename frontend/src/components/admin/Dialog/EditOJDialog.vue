@@ -28,6 +28,14 @@
               <input v-model="editForm.title" placeholder="如：两数之和" />
             </div>
             <div class="form-group">
+              <label>题目来源：</label>
+              <select v-model="editForm.category">
+                <option v-for="t in questionTypeStore.allTypes.value" :key="t.name" :value="t.name">
+                  {{ t.display_name || t.name }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group" v-if="editForm.category === 'GESP'">
               <label>GESP 等级：</label>
               <select v-model="editForm.level">
                 <option value="1">GESP 1级</option>
@@ -36,6 +44,8 @@
                 <option value="4">GESP 4级</option>
                 <option value="5">GESP 5级</option>
                 <option value="6">GESP 6级</option>
+                <option value="7">GESP 7级</option>
+                <option value="8">GESP 8级</option>
               </select>
             </div>
           </div>
@@ -256,9 +266,13 @@
 import { ref, watch, computed } from 'vue'
 import axios from 'axios'
 import SuccessMessageDialog from './SuccessMessageDialog.vue'
+import { useQuestionTypeStore } from '@/stores/questionTypeStore'
 import hljs from 'highlight.js'
 // @ts-ignore
 import katex from 'katex'
+
+const questionTypeStore = useQuestionTypeStore()
+questionTypeStore.fetchQuestionTypes()
 
 const props = defineProps<{
   visible: boolean
@@ -300,6 +314,7 @@ function initFormData(problemData: any) {
     video_url: problemData.video_url || '',
     time_limit: problemData.time_limit || 1000,
     memory_limit: problemData.memory_limit || 256,
+    category: problemData.category || 'GESP',
     level: problemData.level?.toString() || '3',
     publish_date: problemData.publish_date ? new Date(problemData.publish_date).toISOString().split('T')[0] : '',
     bank_visible: problemData.bank_visible !== undefined ? !!problemData.bank_visible : true,
@@ -402,6 +417,9 @@ async function updateOJProblem() {
   }
   if (editForm.value.level) {
     updateData.level = parseInt(editForm.value.level)
+  }
+  if (editForm.value.category) {
+    updateData.category = editForm.value.category
   }
   if (editForm.value.publish_date) {
     updateData.publish_date = editForm.value.publish_date

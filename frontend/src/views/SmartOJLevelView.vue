@@ -2,62 +2,70 @@
   <div class="smartoj-container">
     <!-- 左侧边栏 -->
     <div class="sidebar-left">
-      <div class="sidebar-title">{{ getLevelText() }}</div>
-      
-      <!-- 时间过滤器 -->
-      <div class="date-filter-section" v-if="availableDates.length > 0">
-        <div class="filter-label">
-          <Icon name="calendar" :size="16" />
-          <span>时间筛选</span>
-        </div>
-        <select 
-          v-model="selectedDate" 
-          class="date-select"
-          @change="handleDateChange"
+      <div class="sidebar-title">{{ getSidebarTitle() }}</div>
+
+      <!-- 题目来源筛选 -->
+      <nav class="type-nav-vertical">
+        <button
+          v-for="t in categoryOptions"
+          :key="t.name"
+          @click="selectCategory(t.name)"
+          :class="['type-menu-item', { active: selectedCategory === t.name }]"
         >
-          <option value="">全部时间</option>
-          <option 
-            v-for="date in availableDates" 
-            :key="date" 
-            :value="date"
-          >
-            {{ formatDateOption(date) }}
-          </option>
-        </select>
-      </div>
-      
-      <!-- 等级切换 -->
-      <div class="level-switcher">
-        <div class="level-switcher-header">
-          <Icon name="chevron-down" :size="36" class="level-arrow-icon" />
-          <div class="level-switcher-title">切换等级</div>
-        </div>
-        <div class="level-grid">
-          <div 
-            class="level-item level-item-all"
-            :class="{ 'active': selectedLevel === '' }"
-            @click="selectLevel(0)"
-          >
-            全
-          </div>
-          <div 
-            v-for="lvl in levels" 
-            :key="lvl"
-            class="level-item"
-            :class="{ 
-              'active': selectedLevel === lvl.toString(),
-              'disabled': isLevelDisabled(lvl)
-            }"
-            @click="!isLevelDisabled(lvl) && selectLevel(lvl)"
-          >
-            {{ lvl }}
-          </div>
-        </div>
-      </div>
+          <Icon :name="t.icon" :size="16" />
+          <span>{{ t.display_name || t.name }}</span>
+        </button>
+      </nav>
     </div>
 
     <!-- 主内容区域 -->
     <div class="main-content">
+      <!-- 二级导航栏：等级 + 搜索（仅 GESP） -->
+      <div class="sub-nav-bar" v-if="selectedCategory === 'GESP'">
+        <div class="sub-nav-tabs level-tabs">
+          <button
+            class="sub-nav-tab"
+            :class="{ active: selectedLevel === '' }"
+            @click="selectLevel(0)"
+          >全部</button>
+          <button
+            v-for="lvl in levels"
+            :key="lvl"
+            class="sub-nav-tab"
+            :class="{ active: selectedLevel === lvl.toString() }"
+            @click="selectLevel(lvl)"
+          >{{ lvl }}级</button>
+        </div>
+        <div class="sub-nav-search">
+          <Icon name="search" :size="16" />
+          <input
+            v-model="searchKeyword"
+            type="text"
+            placeholder="搜索题目标题..."
+            class="search-input"
+          />
+          <button v-if="searchKeyword" @click="searchKeyword = ''" class="search-clear">
+            <Icon name="x" :size="14" />
+          </button>
+        </div>
+      </div>
+
+      <!-- 搜索栏（非 GESP） -->
+      <div class="search-bar" v-else>
+        <div class="search-box">
+          <Icon name="search" :size="16" />
+          <input
+            v-model="searchKeyword"
+            type="text"
+            placeholder="搜索题目标题..."
+            class="search-input"
+          />
+          <button v-if="searchKeyword" @click="searchKeyword = ''" class="search-clear">
+            <Icon name="x" :size="14" />
+          </button>
+        </div>
+      </div>
+
       <div v-if="loading" class="loading-state">
         <Icon name="loader-2" :size="24" spin />
         <p>正在加载题目列表...</p>
@@ -75,7 +83,8 @@
             <tr>
               <th>ID</th>
               <th>标题</th>
-              <th>级别</th>
+              <th>题目来源</th>
+              <th v-if="!selectedCategory || selectedCategory === 'GESP'">级别</th>
               <th>发布日期</th>
               <th>提交数</th>
               <th>通过数</th>
@@ -96,7 +105,13 @@
               <td>{{ problem.id }}</td>
               <td class="title-cell">{{ problem.title }}</td>
               <td>
-                <span class="level-badge">GESP {{ problem.level }}级</span>
+                <span class="category-badge" :class="'category-' + (problem.category || 'GESP').toLowerCase()">
+                  {{ getCategoryText(problem.category) }}
+                </span>
+              </td>
+              <td v-if="!selectedCategory || selectedCategory === 'GESP'">
+                <span class="level-badge" v-if="problem.level">GESP {{ problem.level }}级</span>
+                <span class="no-level" v-else>-</span>
               </td>
               <td>{{ formatDate(problem.date) }}</td>
               <td>{{ problem.totalSubmissions }}</td>
@@ -139,12 +154,15 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import Icon from '@/components/Icon.vue'
+import { useQuestionTypeStore } from '@/stores/questionTypeStore'
 
 const router = useRouter()
+const questionTypeStore = useQuestionTypeStore()
 
 // 筛选条件
+const selectedCategory = ref('')
 const selectedLevel = ref('')
-const selectedDate = ref('')
+const searchKeyword = ref('')
 
 // 等级数据
 const levels = ref([1, 2, 3, 4, 5, 6, 7, 8])
@@ -163,11 +181,56 @@ const pagination = ref({
   total: 0
 })
 
-// 获取等级文本
-function getLevelText() {
-  if (!selectedLevel.value) return '全部等级'
-  const level = parseInt(selectedLevel.value)
-  return `GESP ${level}级`
+// 分类图标映射
+const categoryIconMap: Record<string, string> = {
+  '': 'layers',
+  'GESP': 'award',
+  'CSP_J': 'shield',
+  'CSP_S': 'shield-check',
+  'NOI_P': 'trophy',
+  'NOI_A': 'crown',
+  'NOI_IOI': 'globe',
+  'LEETCODE': 'code',
+  'Other': 'file-question'
+}
+
+// 分类选项（含"全部"）
+const categoryOptions = computed(() => {
+  const types = questionTypeStore.allTypes.value.map(t => ({
+    ...t,
+    icon: categoryIconMap[t.name] || 'tag'
+  }))
+  return [{ name: '', display_name: '全部', icon: 'layers' }, ...types]
+})
+
+// 获取侧边栏标题
+function getSidebarTitle() {
+  if (selectedCategory.value) {
+    const type = questionTypeStore.allTypes.value.find(t => t.name === selectedCategory.value)
+    const catText = type?.display_name || selectedCategory.value
+    if (selectedCategory.value === 'GESP' && selectedLevel.value) {
+      return `${catText} ${selectedLevel.value}级`
+    }
+    return catText
+  }
+  if (selectedLevel.value) return `GESP ${selectedLevel.value}级`
+  return '全部题目'
+}
+
+// 获取分类显示文本
+function getCategoryText(category: string) {
+  const type = questionTypeStore.allTypes.value.find(t => t.name === category)
+  return type?.display_name || category || 'GESP'
+}
+
+// 选择分类
+function selectCategory(name: string) {
+  selectedCategory.value = name
+  if (name && name !== 'GESP') {
+    selectedLevel.value = ''
+  }
+  pagination.value.page = 1
+  fetchProblems()
 }
 
 // 从API获取题目列表
@@ -178,7 +241,11 @@ async function fetchProblems() {
       page: pagination.value.page,
       pageSize: pagination.value.pageSize
     }
-    
+
+    if (selectedCategory.value) {
+      params.category = selectedCategory.value
+    }
+
     if (selectedLevel.value) {
       params.level = selectedLevel.value
     }
@@ -193,6 +260,7 @@ async function fetchProblems() {
       problems.value = response.data.data.map((problem: any) => ({
         id: problem.id,
         title: problem.title,
+        category: problem.category,
         level: problem.level,
         date: problem.publish_date,
         shortDescription: truncateDescription(problem.description),
@@ -221,38 +289,12 @@ function truncateDescription(desc: string, maxLength: number = 80): string {
   return desc.substring(0, maxLength) + '...'
 }
 
-// 从题目中提取所有可用的年月
-const availableDates = computed(() => {
-  const dates = new Set<string>()
-  problems.value.forEach((problem) => {
-    if (problem.date) {
-      try {
-        const date = new Date(problem.date)
-        if (!isNaN(date.getTime())) {
-          const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-          dates.add(yearMonth)
-        }
-      } catch (error) {
-        console.warn('日期解析失败:', problem.date, error)
-      }
-    }
-  })
-  return Array.from(dates).sort().reverse()
-})
-
 // 筛选后的题目列表
 const filteredProblems = computed(() => {
   return problems.value.filter((problem) => {
     const matchLevel = !selectedLevel.value || problem.level.toString() === selectedLevel.value
-    
-    let matchDate = true
-    if (selectedDate.value && problem.date) {
-      const problemDate = new Date(problem.date)
-      const problemYearMonth = `${problemDate.getFullYear()}-${String(problemDate.getMonth() + 1).padStart(2, '0')}`
-      matchDate = problemYearMonth === selectedDate.value
-    }
-    
-    return matchLevel && matchDate
+    const matchSearch = !searchKeyword.value || (problem.title && problem.title.toLowerCase().includes(searchKeyword.value.toLowerCase()))
+    return matchLevel && matchSearch
   })
 })
 
@@ -332,11 +374,6 @@ const formatDateOption = (dateStr: string) => {
   }
 }
 
-// 处理日期变化
-const handleDateChange = () => {
-  // 日期变化时筛选会在 computed 属性中自动处理
-}
-
 // 选择等级
 function selectLevel(level: number) {
   if (level === 0) {
@@ -364,6 +401,7 @@ function handleGespLevelChanged(event: CustomEvent) {
 }
 
 onMounted(() => {
+  questionTypeStore.fetchQuestionTypes()
   const savedLevel = localStorage.getItem('userGespLevel')
   if (savedLevel) {
     const level = parseInt(savedLevel, 10)
@@ -423,114 +461,194 @@ onUnmounted(() => {
   margin-bottom: 4px;
 }
 
-/* 时间过滤器 */
-.date-filter-section {
+/* 来源导航 */
+.type-nav-vertical {
   display: flex;
   flex-direction: column;
+  gap: 4px;
+}
+
+.type-menu-item {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  padding: 10px;
-  background: rgba(255,255,255,0.1);
-  border-radius: 8px;
-}
-
-.filter-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: rgba(255,255,255,0.9);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.date-select {
-  appearance: none;
-  background: rgba(255,255,255,0.9);
+  padding: 10px 14px;
+  background: transparent;
   border: none;
-  border-radius: 6px;
-  padding: 8px 10px;
-  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+  font-size: 13px;
   font-weight: 500;
-  color: #1e293b;
   cursor: pointer;
-  width: 100%;
-}
-
-.date-select:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(255,255,255,0.5);
-}
-
-/* 侧边栏等级切换 */
-.level-switcher {
-  margin-top: auto;
-  padding-top: 16px;
-  border-top: 1px solid rgba(255,255,255,0.2);
-}
-
-.level-switcher-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.level-arrow-icon {
-  color: white;
-  animation: bounce 1.5s ease-in-out infinite;
-}
-
-@keyframes bounce {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(4px);
-  }
-}
-
-.level-switcher-title {
-  color: rgba(255,255,255,0.9);
-  font-size: 12px;
-  font-weight: 600;
-  text-align: center;
-}
-
-.level-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-}
-
-.level-item {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  aspect-ratio: 1;
-  background: rgba(255,255,255,0.15);
   border-radius: 8px;
+  transition: all 0.3s ease;
+  text-align: left;
+}
+
+.type-menu-item:hover {
+  background: rgba(255,255,255,0.1);
   color: white;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.level-item:hover {
-  background: rgba(255,255,255,0.3);
-  transform: scale(1.05);
-}
-
-.level-item.active {
-  background: white;
+.type-menu-item.active {
+  background: rgba(255,255,255,0.95);
   color: #1e90ff;
+  font-weight: 600;
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
-.level-item.disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  pointer-events: none;
+/* 二级导航栏 */
+.sub-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: white;
+  border-radius: 12px;
+  border: 1.5px solid #e2e8f0;
+  padding: 6px 16px;
+  margin-bottom: 12px;
+}
+
+.sub-nav-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.sub-nav-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.sub-nav-tab:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.sub-nav-tab.active {
+  background: linear-gradient(135deg, #1e90ff 0%, #38bdf8 100%);
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(30, 144, 255, 0.3);
+}
+
+.sub-nav-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 12px;
+  min-width: 200px;
+  transition: all 0.2s ease;
+}
+
+.sub-nav-search:focus-within {
+  border-color: #1e90ff;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.1);
+}
+
+.sub-nav-search :deep(.lucide-icon) {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.sub-nav-search .search-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: #1e293b;
+  width: 100%;
+}
+
+.sub-nav-search .search-input::placeholder {
+  color: #94a3b8;
+}
+
+.sub-nav-search .search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.sub-nav-search .search-clear:hover {
+  color: #64748b;
+  background: #e2e8f0;
+}
+
+/* 搜索栏 */
+.search-bar {
+  margin-bottom: 12px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 14px;
+  transition: all 0.2s ease;
+}
+
+.search-box:focus-within {
+  border-color: #1e90ff;
+  box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.1);
+}
+
+.search-box :deep(.lucide-icon) {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.search-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 14px;
+  color: #1e293b;
+  width: 100%;
+}
+
+.search-input::placeholder {
+  color: #94a3b8;
+}
+
+.search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.search-clear:hover {
+  color: #64748b;
+  background: #e2e8f0;
 }
 
 /* 主内容区域 */
@@ -625,6 +743,27 @@ onUnmounted(() => {
   border-radius: 12px;
   font-size: 12px;
   font-weight: 600;
+}
+
+.category-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.category-gesp { background: #dbeafe; color: #1e40af; }
+.category-csp_j { background: #dcfce7; color: #166534; }
+.category-csp_s { background: #dcfce7; color: #166534; }
+.category-noi_p { background: #fef3c7; color: #92400e; }
+.category-noi_a { background: #fef3c7; color: #92400e; }
+.category-noi_ioi { background: #fce7f3; color: #9d174d; }
+.category-leetcode { background: #f3e8ff; color: #6b21a8; }
+.category-other { background: #f1f5f9; color: #475569; }
+
+.no-level {
+  color: #94a3b8;
 }
 
 .pass-rate {
@@ -741,32 +880,36 @@ onUnmounted(() => {
     padding: 8px 0;
   }
   
-  .date-filter-section {
-    padding: 6px;
+  .search-box {
+    padding: 6px 10px;
   }
-  
-  .filter-label span {
-    display: none;
-  }
-  
-  .date-select {
-    font-size: 10px;
-    padding: 6px;
-  }
-  
-  .level-switcher-title {
-    display: none;
-  }
-  
-  .level-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 4px;
-  }
-  
-  .level-item {
+
+  .search-input {
     font-size: 12px;
   }
-  
+
+  .sub-nav-bar {
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .sub-nav-tabs {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .sub-nav-tab {
+    padding: 6px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .sub-nav-search {
+    width: 100%;
+    min-width: unset;
+  }
+
   .main-content {
     margin-left: 60px;
     padding: 16px;

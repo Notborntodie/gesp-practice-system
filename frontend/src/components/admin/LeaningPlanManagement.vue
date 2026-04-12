@@ -2,14 +2,31 @@
     <div class="plan-management">
       <div class="section-header">
         <h2>学习计划管理</h2>
-        <button v-if="mode === 'admin'" @click="showCreateDialog = true" class="btn btn-primary">
-          <i class="fas fa-plus"></i> 创建新计划
-        </button>
+        <div v-if="mode === 'admin'" class="header-actions">
+          <button @click="showQuickCreateDialog = true" class="btn btn-quick">
+            <i class="fas fa-bolt"></i> 快速创建
+          </button>
+          <button @click="showTemplateDialog = true" class="btn btn-template">
+            <i class="fas fa-clone"></i> 从模板创建
+          </button>
+          <button @click="openPlanEditor?.()" class="btn btn-primary">
+            <i class="fas fa-plus"></i> 创建新计划
+          </button>
+        </div>
       </div>
   
       <!-- 筛选器 -->
       <div class="filters">
         <div class="filter-group">
+          <label>题目来源：</label>
+          <select v-model="selectedCategory" @change="fetchPlans" class="filter-select">
+            <option value="">全部</option>
+            <option v-for="t in questionTypeStore.allTypes.value" :key="t.name" :value="t.name">
+              {{ t.display_name || t.name }}
+            </option>
+          </select>
+        </div>
+        <div class="filter-group" v-if="selectedCategory === '' || selectedCategory === 'GESP'">
           <label>级别筛选：</label>
           <select v-model="selectedLevel" @change="fetchPlans" class="filter-select">
             <option value="">全部级别</option>
@@ -23,7 +40,7 @@
             <option value="8">GESP 8级</option>
           </select>
         </div>
-        
+
         <div class="filter-group">
           <label>状态筛选：</label>
           <select v-model="selectedStatus" @change="fetchPlans" class="filter-select">
@@ -46,6 +63,7 @@
             <tr>
               <th>ID</th>
               <th>计划名称</th>
+              <th>题目来源</th>
               <th>级别</th>
               <th>开始时间</th>
               <th>结束时间</th>
@@ -60,7 +78,13 @@
               <td>{{ plan.id }}</td>
               <td class="title-cell">{{ plan.name }}</td>
               <td>
-                <span class="level-badge">GESP {{ plan.level }}级</span>
+                <span class="category-badge" :class="'category-' + (plan.category || 'GESP').toLowerCase()">
+                  {{ getCategoryText(plan.category) }}
+                </span>
+              </td>
+              <td v-if="selectedCategory === '' || selectedCategory === 'GESP'">
+                <span class="level-badge" v-if="plan.level">GESP {{ plan.level }}级</span>
+                <span class="no-level" v-else>-</span>
               </td>
               <td>{{ formatDate(plan.start_time) }}</td>
               <td>{{ formatDate(plan.end_time) }}</td>
@@ -82,7 +106,7 @@
                     <button @click="viewPlan(plan.id)" class="btn-action btn-view" title="查看详情">
                       <Icon name="eye" :size="18" />
                     </button>
-                    <button @click="editPlan(plan.id)" class="btn-action btn-edit" title="编辑">
+                    <button @click="openPlanEditor?.(plan.id)" class="btn-action btn-edit" title="编辑">
                       <Icon name="edit" :size="18" />
                     </button>
                     <button @click="togglePlanStatus(plan)" class="btn-action btn-toggle" :title="plan.is_active ? '停用' : '激活'">
@@ -90,6 +114,9 @@
                     </button>
                     <button @click="copyPlan(plan)" class="btn-action btn-copy" title="复制">
                       <Icon name="copy" :size="18" />
+                    </button>
+                    <button @click="saveAsTemplate(plan)" class="btn-action btn-save-template" title="保存为模板">
+                      <Icon name="bookmark" :size="18" />
                     </button>
                     <button
                       class="btn-action btn-plan-link"
@@ -121,12 +148,18 @@
         </div>
       </div>
   
-      <!-- 创建/编辑计划对话框 -->
-      <CreatePlanDialog
-        :visible="showCreateDialog || showEditDialog"
-        :plan="editingPlan"
-        @close="handleDialogClose"
-        @success="handleSuccess"
+      <!-- 快速创建计划对话框 -->
+      <QuickCreatePlanDialog
+        :visible="showQuickCreateDialog"
+        @close="showQuickCreateDialog = false"
+        @created-with-id="handleQuickCreated"
+      />
+
+      <!-- 从模板创建对话框 -->
+      <TemplateSelectDialog
+        :visible="showTemplateDialog"
+        @close="showTemplateDialog = false"
+        @created-with-id="handleTemplateCreated"
       />
   
       <!-- 查看计划详情对话框 -->
@@ -234,12 +267,14 @@
   </template>
   
   <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, inject } from 'vue'
 import axios from 'axios'
-import CreatePlanDialog from './Dialog/CreatePlanDialog.vue'
+import QuickCreatePlanDialog from './Dialog/QuickCreatePlanDialog.vue'
+import TemplateSelectDialog from './Dialog/TemplateSelectDialog.vue'
 import PlanDetailDialog from './Dialog/PlanDetailDialog.vue'
 import SuccessMessageDialog from './Dialog/SuccessMessageDialog.vue'
 import Icon from '@/components/Icon.vue'
+import { useQuestionTypeStore } from '@/stores/questionTypeStore'
 
 import { BASE_URL } from '@/config/api'
 
@@ -250,14 +285,16 @@ const props = withDefaults(defineProps<{
   mode: 'admin'
 })
 
+const questionTypeStore = useQuestionTypeStore()
+const openPlanEditor: ((planId?: number) => void) | undefined = inject('openPlanEditor')
+const selectedCategory = ref('')
 const selectedLevel = ref('')
 const selectedStatus = ref('1') // 默认显示激活的计划
 const plans = ref<any[]>([])
 const loading = ref(false)
-const showCreateDialog = ref(false)
-const showEditDialog = ref(false)
+const showQuickCreateDialog = ref(false)
+const showTemplateDialog = ref(false)
 const showDetailDialog = ref(false)
-const editingPlan = ref<any>(null)
 const viewingPlanId = ref<number | null>(null)
 
 // 教师模式：添加学生相关
@@ -311,7 +348,11 @@ async function fetchPlans() {
   try {
     // 构建查询参数
     const params: any = {}
-    
+
+    if (selectedCategory.value) {
+      params.category = selectedCategory.value
+    }
+
     if (selectedLevel.value) {
       params.level = selectedLevel.value
     }
@@ -332,6 +373,11 @@ async function fetchPlans() {
   } finally {
     loading.value = false
   }
+}
+
+function getCategoryText(category: string) {
+  const type = questionTypeStore.allTypes.value.find(t => t.name === category)
+  return type?.display_name || category
 }
 
 // 格式化日期
@@ -367,72 +413,6 @@ function getStatusText(plan: any) {
 function viewPlan(id: number) {
   viewingPlanId.value = id
   showDetailDialog.value = true
-}
-
-// 编辑计划
-async function editPlan(id: number) {
-  console.log('🔧 [PlanManagement] 开始编辑计划, ID:', id)
-  try {
-    // 使用管理员专用 API 获取完整的计划详情（包括所有任务和练习）
-    const response = await axios.get(`${BASE_URL}/learning-plans/${id}/admin`)
-    console.log('📡 [PlanManagement] 管理员API响应:', response.data)
-    
-    if (response.data.success) {
-      const planData = response.data.data
-      
-      // 转换数据格式以适配 CreatePlanDialog 组件
-      editingPlan.value = {
-        id: planData.id,
-        name: planData.name,
-        description: planData.description,
-        level: planData.level,
-        start_time: planData.start_time,
-        end_time: planData.end_time,
-        is_active: planData.is_active,
-        tasks: (planData.tasks || []).map((task: any) => ({
-          name: task.name,
-          description: task.description,
-          review_content: task.review_content,
-          review_content_type: task.review_content_type || 'text',
-          review_video_url: task.review_video_url,
-          start_time: task.start_time,
-          end_time: task.end_time,
-          task_order: task.task_order,
-          is_exam_mode: task.is_exam_mode || false,
-          // 保留试卷的所有详细信息
-          exams: (task.exams || []).map((exam: any) => ({
-            exam_id: exam.exam_id,
-            exam_order: exam.exam_order,
-            exam_name: exam.exam_name,
-            exam_level: exam.exam_level,
-            exam_type: exam.exam_type,
-            total_questions: exam.total_questions
-          })),
-          // 保留OJ题目的所有详细信息
-          oj_problems: (task.oj_problems || []).map((problem: any) => ({
-            problem_id: problem.problem_id,
-            problem_order: problem.problem_order,
-            problem_title: problem.problem_title,
-            problem_description: problem.problem_description,
-            problem_level: problem.problem_level,
-            time_limit: problem.time_limit,
-            memory_limit: problem.memory_limit
-          }))
-        }))
-      }
-      
-      showEditDialog.value = true
-      console.log('✅ [PlanManagement] 打开编辑弹窗，计划数据:', editingPlan.value)
-      console.log('📋 [PlanManagement] 任务数量:', editingPlan.value.tasks.length)
-    } else {
-      console.warn('⚠️ [PlanManagement] 响应success为false')
-      alert('获取计划详情失败')
-    }
-  } catch (error: any) {
-    console.error('❌ [PlanManagement] 获取计划详情失败:', error)
-    const errorMsg = error.response?.data?.message || error.message || '获取计划详情失败'
-    alert(`获取计划详情失败: ${errorMsg}`)
-  }
 }
 
 // 切换计划激活状态
@@ -489,17 +469,40 @@ async function deletePlan(id: number) {
   }
 }
 
-// 关闭对话框
-function handleDialogClose() {
-  showCreateDialog.value = false
-  showEditDialog.value = false
-  editingPlan.value = null
+// 快速创建成功后，自动打开编辑器
+async function handleQuickCreated(planId: number) {
+  await fetchPlans()
+  openPlanEditor?.(planId)
 }
 
-// 成功回调
-function handleSuccess() {
-  handleDialogClose()
-  fetchPlans()
+// 从模板创建成功后，自动打开编辑器
+async function handleTemplateCreated(planId: number) {
+  await fetchPlans()
+  openPlanEditor?.(planId)
+}
+
+// 保存为模板
+async function saveAsTemplate(plan: any) {
+  const name = prompt('请输入模板名称：', plan.name)
+  if (!name) return
+
+  try {
+    const response = await axios.post(`${BASE_URL}/plan-templates`, {
+      name,
+      description: plan.description,
+      category: plan.category,
+      level: plan.level,
+      plan_id: plan.id
+    })
+    if (response.data.success) {
+      showSuccess('模板保存成功')
+    } else {
+      throw new Error(response.data.error || '保存失败')
+    }
+  } catch (error: any) {
+    console.error('保存模板失败:', error)
+    alert('保存模板失败: ' + (error.response?.data?.error || error.message))
+  }
 }
 
 // 教师模式：打开添加学生弹窗
@@ -683,6 +686,8 @@ async function copyPlanQrImage() {
 }
 
 onMounted(() => {
+  questionTypeStore.fetchQuestionTypes()
+
   // 获取用户信息
   const userInfoStr = localStorage.getItem('userInfo')
   if (userInfoStr) {
@@ -710,6 +715,11 @@ onMounted(() => {
   color: #1e293b;
   font-size: 24px;
   font-weight: 600;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
 }
 
 .filters {
@@ -812,6 +822,27 @@ onMounted(() => {
   font-weight: 600;
 }
 
+.category-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.category-gesp { background: #dbeafe; color: #1e40af; }
+.category-csp_j { background: #dcfce7; color: #166534; }
+.category-csp_s { background: #dcfce7; color: #166534; }
+.category-noi_p { background: #fef3c7; color: #92400e; }
+.category-noi_a { background: #fef3c7; color: #92400e; }
+.category-noi_ioi { background: #fce7f3; color: #9d174d; }
+.category-leetcode { background: #f3e8ff; color: #6b21a8; }
+.category-other { background: #f1f5f9; color: #475569; }
+
+.no-level {
+  color: #94a3b8;
+}
+
 .status-badge {
   display: inline-block;
   padding: 6px 12px;
@@ -911,6 +942,16 @@ onMounted(() => {
     transform: translateY(-1px);
   }
 
+  .btn-save-template {
+    background: #6366f1;
+    color: white;
+  }
+
+  .btn-save-template:hover {
+    background: #4f46e5;
+    transform: translateY(-1px);
+  }
+
   .btn-plan-link {
     background: #38bdf8;
     color: white;
@@ -954,10 +995,30 @@ onMounted(() => {
     background: linear-gradient(135deg, #1e90ff 0%, #38bdf8 100%);
     color: white;
   }
-  
+
   .btn-primary:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(30, 144, 255, 0.3);
+  }
+
+  .btn-quick {
+    background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+    color: white;
+  }
+
+  .btn-quick:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  }
+
+  .btn-template {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: white;
+  }
+
+  .btn-template:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
   }
   
   .loading-state {

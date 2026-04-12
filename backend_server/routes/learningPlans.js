@@ -126,17 +126,18 @@ router.get('/learning-plans/my-plans', async (req, res) => {
 // ==================== 2. 获取所有学习计划列表 ====================
 router.get('/learning-plans/all', async (req, res) => {
   try {
-    const { level, is_active } = req.query;
-    
+    const { level, category, is_active } = req.query;
+
     const connection = await pool.getConnection();
-    
+
     try {
       let query = `
-        SELECT 
+        SELECT
           lp.id,
           lp.name,
           lp.description,
           lp.level,
+          lp.category,
           lp.start_time,
           lp.end_time,
           lp.is_active,
@@ -153,23 +154,29 @@ router.get('/learning-plans/all', async (req, res) => {
         LEFT JOIN task_oj_problems top ON lt.id = top.task_id
         WHERE 1=1
       `;
-      
+
       const params = [];
-      
+
+      // 如果指定了题目来源，添加分类过滤
+      if (category) {
+        query += ' AND lp.category = ?';
+        params.push(category);
+      }
+
       // 如果指定了级别，添加级别过滤
       if (level) {
         query += ' AND lp.level = ?';
         params.push(level);
       }
-      
+
       // 如果指定了状态，添加状态过滤
       if (is_active !== undefined) {
         query += ' AND lp.is_active = ?';
         params.push(is_active);
       }
-      
+
       query += `
-        GROUP BY lp.id, lp.name, lp.description, lp.level, lp.start_time, lp.end_time, 
+        GROUP BY lp.id, lp.name, lp.description, lp.level, lp.category, lp.start_time, lp.end_time,
                  lp.is_active, lp.created_at, lp.updated_at, lp.public_progress_token, lp.public_progress_enabled
         ORDER BY lp.created_at DESC
       `;
@@ -1089,6 +1096,80 @@ router.post('/learning-plans', async (req, res) => {
       error: '创建学习计划失败',
       message: error.message 
     });
+  }
+});
+
+// ==================== 9.5 删除学习计划 ====================
+router.delete('/learning-plans/:planId', async (req, res) => {
+  try {
+    const { planId } = req.params;
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      // 检查计划是否存在
+      const [plans] = await connection.execute('SELECT id FROM learning_plans WHERE id = ?', [planId]);
+      if (plans.length === 0) {
+        await connection.rollback();
+        connection.release();
+        return res.status(404).json({ success: false, error: '学习计划不存在' });
+      }
+
+      // 删除用户计划关联
+      await connection.execute('DELETE FROM user_learning_plans WHERE plan_id = ?', [planId]);
+
+      // 删除用户任务进度
+      await connection.execute(
+        'DELETE FROM user_task_progress WHERE task_id IN (SELECT id FROM learning_tasks WHERE plan_id = ?)',
+        [planId]
+      );
+
+      // 删除用户考试进度
+      await connection.execute(
+        'DELETE FROM user_exam_progress WHERE task_id IN (SELECT id FROM learning_tasks WHERE plan_id = ?)',
+        [planId]
+      );
+
+      // 删除用户OJ进度
+      await connection.execute(
+        'DELETE FROM user_oj_progress WHERE task_id IN (SELECT id FROM learning_tasks WHERE plan_id = ?)',
+        [planId]
+      );
+
+      // 删除用户计划进度
+      await connection.execute('DELETE FROM user_plan_progress WHERE plan_id = ?', [planId]);
+
+      // 删除任务考试关联
+      await connection.execute(
+        'DELETE FROM task_exams WHERE task_id IN (SELECT id FROM learning_tasks WHERE plan_id = ?)',
+        [planId]
+      );
+
+      // 删除任务OJ关联
+      await connection.execute(
+        'DELETE FROM task_oj_problems WHERE task_id IN (SELECT id FROM learning_tasks WHERE plan_id = ?)',
+        [planId]
+      );
+
+      // 删除任务
+      await connection.execute('DELETE FROM learning_tasks WHERE plan_id = ?', [planId]);
+
+      // 删除计划
+      await connection.execute('DELETE FROM learning_plans WHERE id = ?', [planId]);
+
+      await connection.commit();
+      connection.release();
+
+      res.json({ success: true, message: '学习计划删除成功' });
+    } catch (error) {
+      await connection.rollback();
+      connection.release();
+      throw error;
+    }
+  } catch (error) {
+    logger.error('删除学习计划失败:', error);
+    res.status(500).json({ success: false, error: '删除学习计划失败', message: error.message });
   }
 });
 
@@ -3576,6 +3657,373 @@ router.get('/learning-plans/:planId', async (req, res) => {
       error: '获取学习计划详情失败',
       message: error.message
     });
+  }
+});
+
+// ==================== 17. 计划模板管理 ====================
+
+// 17.1 获取所有模板列表
+router.get('/plan-templates', async (req, res) => {
+  try {
+    const { category, level } = req.query;
+    const connection = await pool.getConnection();
+
+    try {
+      let sql = 'SELECT pt.*, (SELECT COUNT(*) FROM template_tasks WHERE template_id = pt.id) as task_count FROM plan_templates pt WHERE 1=1';
+      const params = [];
+
+      if (category) {
+        sql += ' AND pt.category = ?';
+        params.push(category);
+      }
+      if (level) {
+        sql += ' AND pt.level = ?';
+        params.push(parseInt(level));
+      }
+
+      sql += ' ORDER BY pt.updated_at DESC';
+
+      const [templates] = await connection.execute(sql, params);
+      connection.release();
+
+      res.json({ success: true, data: templates });
+    } catch (error) {
+      connection.release();
+      throw error;
+    }
+  } catch (error) {
+    logger.error('获取模板列表失败:', error);
+    res.status(500).json({ success: false, error: '获取模板列表失败', message: error.message });
+  }
+});
+
+// 17.2 获取模板详情（含任务和选题）
+router.get('/plan-templates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connection = await pool.getConnection();
+
+    try {
+      const [templates] = await connection.execute('SELECT * FROM plan_templates WHERE id = ?', [id]);
+      if (templates.length === 0) {
+        connection.release();
+        return res.status(404).json({ success: false, error: '模板不存在' });
+      }
+
+      const template = templates[0];
+
+      const [tasks] = await connection.execute(`
+        SELECT
+          tt.*,
+          (SELECT JSON_ARRAYAGG(JSON_OBJECT('exam_id', tte.exam_id, 'exam_order', tte.exam_order))
+           FROM template_task_exams tte WHERE tte.template_task_id = tt.id) as exams,
+          (SELECT JSON_ARRAYAGG(JSON_OBJECT('problem_id', ttop.problem_id, 'problem_order', ttop.problem_order))
+           FROM template_task_oj_problems ttop WHERE ttop.template_task_id = tt.id) as oj_problems
+        FROM template_tasks tt
+        WHERE tt.template_id = ?
+        ORDER BY tt.task_order
+      `, [id]);
+
+      connection.release();
+
+      res.json({
+        success: true,
+        data: { ...template, tasks }
+      });
+    } catch (error) {
+      connection.release();
+      throw error;
+    }
+  } catch (error) {
+    logger.error('获取模板详情失败:', error);
+    res.status(500).json({ success: false, error: '获取模板详情失败', message: error.message });
+  }
+});
+
+// 17.3 创建模板（从现有计划保存）
+router.post('/plan-templates', async (req, res) => {
+  try {
+    const { name, description, category, level, plan_id } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ success: false, error: '缺少必需参数: name' });
+    }
+
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      let templateCategory = category;
+      let templateLevel = level ? parseInt(level) : null;
+      let tasks = null;
+
+      // 如果提供了 plan_id，从计划复制完整结构
+      if (plan_id) {
+        const [planRows] = await connection.execute('SELECT * FROM learning_plans WHERE id = ?', [plan_id]);
+        if (planRows.length === 0) {
+          await connection.rollback();
+          connection.release();
+          return res.status(404).json({ success: false, error: '学习计划不存在' });
+        }
+        const plan = planRows[0];
+        templateCategory = templateCategory || plan.category;
+        templateLevel = templateLevel !== null ? templateLevel : plan.level;
+
+        // 获取计划的所有任务
+        const [planTasks] = await connection.execute(
+          'SELECT * FROM learning_tasks WHERE plan_id = ? ORDER BY task_order',
+          [plan_id]
+        );
+        tasks = planTasks;
+      }
+
+      // 创建模板
+      const [templateResult] = await connection.execute(`
+        INSERT INTO plan_templates (name, description, category, level)
+        VALUES (?, ?, ?, ?)
+      `, [name, description || null, templateCategory || 'GESP', templateLevel]);
+
+      const templateId = templateResult.insertId;
+
+      // 如果有任务，复制任务结构
+      if (tasks && tasks.length > 0) {
+        for (let i = 0; i < tasks.length; i++) {
+          const task = tasks[i];
+          const [taskResult] = await connection.execute(`
+            INSERT INTO template_tasks (template_id, name, description, review_content, review_content_type, review_video_url, task_order, start_time, end_time, is_exam_mode)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [
+            templateId,
+            task.name || `任务${i + 1}`,
+            task.description || null,
+            task.review_content || null,
+            task.review_content_type || 'text',
+            task.review_video_url || null,
+            task.task_order !== undefined ? task.task_order : i + 1,
+            task.start_time || null,
+            task.end_time || null,
+            task.is_exam_mode || 0
+          ]);
+
+          const templateTaskId = taskResult.insertId;
+
+          // 复制客观题关联
+          const [taskExams] = await connection.execute(
+            'SELECT * FROM task_exams WHERE task_id = ? ORDER BY exam_order',
+            [task.id]
+          );
+          for (const exam of taskExams) {
+            await connection.execute(
+              'INSERT INTO template_task_exams (template_task_id, exam_id, exam_order) VALUES (?, ?, ?)',
+              [templateTaskId, exam.exam_id, exam.exam_order]
+            );
+          }
+
+          // 复制OJ编程题关联
+          const [taskOjProblems] = await connection.execute(
+            'SELECT * FROM task_oj_problems WHERE task_id = ? ORDER BY problem_order',
+            [task.id]
+          );
+          for (const problem of taskOjProblems) {
+            await connection.execute(
+              'INSERT INTO template_task_oj_problems (template_task_id, problem_id, problem_order) VALUES (?, ?, ?)',
+              [templateTaskId, problem.problem_id, problem.problem_order]
+            );
+          }
+        }
+      }
+
+      await connection.commit();
+      connection.release();
+
+      res.json({
+        success: true,
+        message: '模板创建成功',
+        data: { id: templateId, name }
+      });
+    } catch (error) {
+      await connection.rollback();
+      connection.release();
+      throw error;
+    }
+  } catch (error) {
+    logger.error('创建模板失败:', error);
+    res.status(500).json({ success: false, error: '创建模板失败', message: error.message });
+  }
+});
+
+// 17.4 更新模板
+router.put('/plan-templates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, category, level } = req.body;
+
+    const connection = await pool.getConnection();
+    await connection.execute(
+      'UPDATE plan_templates SET name = ?, description = ?, category = ?, level = ? WHERE id = ?',
+      [name, description || null, category || 'GESP', level ? parseInt(level) : null, id]
+    );
+    connection.release();
+
+    res.json({ success: true, message: '模板更新成功' });
+  } catch (error) {
+    logger.error('更新模板失败:', error);
+    res.status(500).json({ success: false, error: '更新模板失败', message: error.message });
+  }
+});
+
+// 17.5 删除模板
+router.delete('/plan-templates/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connection = await pool.getConnection();
+    await connection.execute('DELETE FROM plan_templates WHERE id = ?', [id]);
+    connection.release();
+
+    res.json({ success: true, message: '模板删除成功' });
+  } catch (error) {
+    logger.error('删除模板失败:', error);
+    res.status(500).json({ success: false, error: '删除模板失败', message: error.message });
+  }
+});
+
+// 17.6 从模板创建学习计划
+router.post('/plan-templates/:id/create-plan', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, start_time, end_time, description } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ success: false, error: '缺少必需参数: name' });
+    }
+
+    const connection = await pool.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      // 获取模板详情
+      const [templates] = await connection.execute('SELECT * FROM plan_templates WHERE id = ?', [id]);
+      if (templates.length === 0) {
+        await connection.rollback();
+        connection.release();
+        return res.status(404).json({ success: false, error: '模板不存在' });
+      }
+
+      const template = templates[0];
+
+      // 获取模板任务
+      const [templateTasks] = await connection.execute(
+        'SELECT * FROM template_tasks WHERE template_id = ? ORDER BY task_order',
+        [id]
+      );
+
+      if (templateTasks.length === 0) {
+        await connection.rollback();
+        connection.release();
+        return res.status(400).json({ success: false, error: '模板没有任务' });
+      }
+
+      // 创建学习计划
+      const [planResult] = await connection.execute(`
+        INSERT INTO learning_plans (name, description, level, category, start_time, end_time, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, 1)
+      `, [
+        name,
+        description || template.description || null,
+        template.level,
+        template.category,
+        start_time || null,
+        end_time || null
+      ]);
+
+      const planId = planResult.insertId;
+
+      // 按模板创建任务（时间按比例缩放）
+      const templateStart = templateTasks[0].start_time ? new Date(templateTasks[0].start_time).getTime() : null;
+      const templateEnd = templateTasks[templateTasks.length - 1].end_time ? new Date(templateTasks[templateTasks.length - 1].end_time).getTime() : null;
+
+      const planStart = start_time ? new Date(start_time).getTime() : null;
+      const planEnd = end_time ? new Date(end_time).getTime() : null;
+
+      for (let i = 0; i < templateTasks.length; i++) {
+        const tTask = templateTasks[i];
+        let taskStartTime = null;
+        let taskEndTime = null;
+
+        // 如果模板和计划都有时间，按比例缩放
+        if (templateStart && templateEnd && planStart && planEnd) {
+          const tStart = new Date(tTask.start_time).getTime();
+          const tEnd = new Date(tTask.end_time).getTime();
+          const tTotal = templateEnd - templateStart;
+          const pTotal = planEnd - planStart;
+          if (tTotal > 0 && pTotal > 0) {
+            const ratio = pTotal / tTotal;
+            taskStartTime = new Date(planStart + (tStart - templateStart) * ratio).toISOString().slice(0, 19).replace('T', ' ');
+            taskEndTime = new Date(planStart + (tEnd - templateStart) * ratio).toISOString().slice(0, 19).replace('T', ' ');
+          }
+        }
+
+        const [taskResult] = await connection.execute(`
+          INSERT INTO learning_tasks (plan_id, name, description, review_content, review_content_type, review_video_url, start_time, end_time, task_order, is_exam_mode)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          planId,
+          tTask.name,
+          tTask.description || null,
+          tTask.review_content || null,
+          tTask.review_content_type || 'text',
+          tTask.review_video_url || null,
+          taskStartTime,
+          taskEndTime,
+          tTask.task_order !== undefined ? tTask.task_order : i + 1,
+          tTask.is_exam_mode || 0
+        ]);
+
+        const newTaskId = taskResult.insertId;
+
+        // 复制客观题关联
+        const [taskExams] = await connection.execute(
+          'SELECT * FROM template_task_exams WHERE template_task_id = ? ORDER BY exam_order',
+          [tTask.id]
+        );
+        for (const exam of taskExams) {
+          await connection.execute(
+            'INSERT INTO task_exams (task_id, exam_id, exam_order) VALUES (?, ?, ?)',
+            [newTaskId, exam.exam_id, exam.exam_order]
+          );
+        }
+
+        // 复制OJ编程题关联
+        const [taskOjProblems] = await connection.execute(
+          'SELECT * FROM template_task_oj_problems WHERE template_task_id = ? ORDER BY problem_order',
+          [tTask.id]
+        );
+        for (const problem of taskOjProblems) {
+          await connection.execute(
+            'INSERT INTO task_oj_problems (task_id, problem_id, problem_order) VALUES (?, ?, ?)',
+            [newTaskId, problem.problem_id, problem.problem_order]
+          );
+        }
+      }
+
+      await connection.commit();
+      connection.release();
+
+      res.json({
+        success: true,
+        message: '从模板创建计划成功',
+        data: { id: planId, name }
+      });
+    } catch (error) {
+      await connection.rollback();
+      connection.release();
+      throw error;
+    }
+  } catch (error) {
+    logger.error('从模板创建计划失败:', error);
+    res.status(500).json({ success: false, error: '从模板创建计划失败', message: error.message });
   }
 });
 

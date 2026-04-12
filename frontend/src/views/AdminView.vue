@@ -75,7 +75,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import { ref, onMounted, computed, KeepAlive } from 'vue'
+import { ref, onMounted, computed, provide, KeepAlive } from 'vue'
 
 import QuestionUpload from '@/components/admin/QuestionUpload.vue'
 import KnowledgePointManagement from '@/components/admin/KnowledgePointManagement.vue'
@@ -84,6 +84,7 @@ import ExamManagement from '@/components/admin/ExamManagement.vue'
 import UserManagement from '@/components/admin/UserManagement.vue'
 import OJManagement from '@/components/admin/OJManagement.vue'
 import LeaningPlanManagement from '@/components/admin/LeaningPlanManagement.vue'
+import PlanEditorView from '@/components/admin/PlanEditorView.vue'
 import AdminPlanProgressSection from '@/components/admin/AdminPlanProgressSection.vue'
 import AdminTestManagementSection from '@/components/admin/AdminTestManagementSection.vue'
 
@@ -106,6 +107,27 @@ const currentActiveSection = ref<string>('')
 
 // 页面刷新触发器 - 用于控制各个页面是否需要刷新数据
 const sectionRefreshTriggers = ref<Record<string, number>>({})
+
+// 计划编辑器状态
+const planEditorPlanId = ref<number | undefined>(undefined)
+
+// Provide 给子组件使用
+provide('closeCurrentSection', () => {
+  const key = currentActiveSection.value
+  if (key) closeSection(key)
+})
+provide('triggerSectionRefresh', triggerSectionRefresh)
+provide('planEditorPlanId', planEditorPlanId)
+provide('openPlanEditor', openPlanEditor)
+
+// 打开计划编辑器
+function openPlanEditor(planId?: number) {
+  planEditorPlanId.value = planId
+  if (!openedSections.value.includes('plan-editor')) {
+    openedSections.value.push('plan-editor')
+  }
+  currentActiveSection.value = 'plan-editor'
+}
 
 // 触发特定页面的数据刷新
 function triggerSectionRefresh(sectionKey: string) {
@@ -188,6 +210,7 @@ const sectionComponentMap: Record<string, any> = {
   'exam-management': ExamManagement,
   'oj-management': OJManagement,
   'plan-management': LeaningPlanManagement,
+  'plan-editor': PlanEditorView,
   'plan-progress': AdminPlanProgressSection,
   'test-management': AdminTestManagementSection,
   'user-management': UserManagement,

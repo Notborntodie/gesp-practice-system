@@ -330,7 +330,7 @@ router.post('/oj/run', async (req, res) => {
  */
 router.get('/oj/problems', async (req, res) => {
   try {
-    const { level, page = 1, pageSize = 20, include_all } = req.query;
+    const { level, category, page = 1, pageSize = 20, include_all } = req.query;
     const offset = (page - 1) * pageSize;
     const forBankOnly = !include_all; // 题库列表只显示 bank_visible=1；管理/选题传 include_all=1 可见全部
 
@@ -338,6 +338,10 @@ router.get('/oj/problems', async (req, res) => {
     let countQuery = 'SELECT COUNT(*) as total FROM oj_problems';
     const params = [];
     const conditions = [];
+    if (category) {
+      conditions.push('category = ?');
+      params.push(category);
+    }
     if (level) {
       conditions.push('level = ?');
       params.push(level);
@@ -749,6 +753,7 @@ router.put('/oj/problems/:id', async (req, res) => {
       time_limit,
       memory_limit,
       level,
+      category,
       publish_date,
       bank_visible,
       samples

@@ -5,9 +5,13 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import json
+from dotenv import load_dotenv
 from llm_processor import LLMProcessor
 from explanation_processor import ExplanationProcessor
 from llm_stream_processor import LLMStreamProcessor
+
+# 加载 .env 文件
+load_dotenv()
 
 # Initialize FastAPI and templates
 app = FastAPI()
@@ -39,22 +43,54 @@ progress_storage = {}
 def extract_pdf_text(file_path: str) -> str:
     """
     Extracts text content from PDF file using pdfplumber for better code formatting.
-    
+
     Args:
         file_path (str): Path to the PDF file
-        
+
     Returns:
         str: Extracted text content
     """
     try:
+        print(f"\n📖 开始提取PDF文本: {file_path}")
+        import os
+        file_size = os.path.getsize(file_path)
+        print(f"   📦 文件大小: {file_size / 1024:.2f} KB")
+
         pdf_text = ""
         with pdfplumber.open(file_path) as pdf:
-            for page in pdf.pages:
+            print(f"   PDF总页数: {len(pdf.pages)}")
+
+            # 检查是否有页面包含图片
+            has_images = False
+            for i, page in enumerate(pdf.pages):
+                if page.images:
+                    has_images = True
+                    break
+
+            if has_images:
+                print(f"   ⚠️ 检测到PDF包含图片，可能是扫描版")
+
+            for i, page in enumerate(pdf.pages):
                 page_text = page.extract_text()
                 if page_text:
                     pdf_text += page_text + "\n"
-        return pdf_text.strip()
+                    print(f"   第{i+1}页提取了 {len(page_text)} 个字符")
+                else:
+                    print(f"   第{i+1}页: 未提取到文本")
+
+        result = pdf_text.strip()
+        print(f"   ✅ PDF文本提取完成，总长度: {len(result)} 字符")
+
+        if result:
+            print(f"   📄 文本预览（前200字符）:")
+            print("   " + "\n   ".join(result[:200].split('\n')) + "...\n")
+        else:
+            print(f"   ⚠️ 警告：PDF文本为空！")
+            print(f"   💡 可能原因：PDF是扫描版图片，需要OCR功能支持\n")
+
+        return result
     except Exception as e:
+        print(f"   ❌ PDF文本提取失败: {str(e)}\n")
         raise ValueError(f"Error extracting PDF text: {str(e)}")
 
 async def process_pdf_file(file: UploadFile, use_llm: bool = True, parallel_workers: int = 3, progress_id: str = None, expected_questions: int = None):

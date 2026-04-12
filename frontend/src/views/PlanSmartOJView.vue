@@ -25,7 +25,10 @@
             <div class="question-card-header">
               <div class="question-title-section">
                 <h2 class="question-title">{{ currentProblem.title }}</h2>
-                <span class="level-badge">GESP {{ currentProblem.level }}级</span>
+                <span class="level-badge" v-if="currentProblem.category === 'GESP' && currentProblem.level">GESP {{ currentProblem.level }}级</span>
+                <span class="category-badge" :class="'category-' + (currentProblem.category || 'GESP').toLowerCase()">
+                  {{ getCategoryText(currentProblem.category) }}
+                </span>
                 <span class="question-date" v-if="currentProblem.date">
                   <Icon name="calendar" :size="16" />
                   <span>{{ formatDate(currentProblem.date) }}</span>
@@ -549,10 +552,12 @@ const getCurrentApiBaseUrl = () => {
 import hljs from 'highlight.js'
 // @ts-ignore
 import katex from 'katex'
-  
+  import { useQuestionTypeStore } from '@/stores/questionTypeStore'
+
   const route = useRoute()
   const router = useRouter()
   const problemId = route.params.problemId
+  const questionTypeStore = useQuestionTypeStore()
   
   // 检查是否从计划页面进入
   const urlParams = new URLSearchParams(window.location.search)
@@ -598,6 +603,7 @@ import katex from 'katex'
   // 当前题目数据（初始为空，从API加载）
   const currentProblem = ref({
     title: '加载中...',
+    category: 'GESP',
     level: 1,
     date: '',
     difficulty: 'medium',
@@ -608,6 +614,12 @@ import katex from 'katex'
     samples: [] as any[],
     constraints: [] as string[],
   })
+
+  // 获取分类显示文本
+  function getCategoryText(category: string) {
+    const type = questionTypeStore.allTypes.value.find(t => t.name === category)
+    return type?.display_name || category || 'GESP'
+  }
 
   // 计算属性：缓存渲染结果，避免重复计算
   const renderedDescription = computed(() => renderMarkdown(currentProblem.value.description))
@@ -626,6 +638,7 @@ import katex from 'katex'
         const data = response.data.data
         currentProblem.value = {
           title: data.title,
+          category: data.category || 'GESP',
           level: data.level,
           date: data.publish_date,
           difficulty: 'medium', // API未返回难度，使用默认值
@@ -2843,6 +2856,23 @@ const confirmAndSubmit = async () => {
     z-index: 1;
     flex-shrink: 0;
   }
+
+  .question-card-header .category-badge {
+    padding: 6px 14px;
+    border-radius: 18px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+  }
+
+  .question-card-header .category-gesp { background: rgba(59,130,246,0.15); color: #93c5fd; }
+  .question-card-header .category-csp_j { background: rgba(34,197,94,0.15); color: #86efac; }
+  .question-card-header .category-csp_s { background: rgba(34,197,94,0.15); color: #86efac; }
+  .question-card-header .category-noi_p { background: rgba(245,158,11,0.15); color: #fcd34d; }
+  .question-card-header .category-noi_a { background: rgba(245,158,11,0.15); color: #fcd34d; }
+  .question-card-header .category-noi_ioi { background: rgba(236,72,153,0.15); color: #f9a8d4; }
+  .question-card-header .category-leetcode { background: rgba(168,85,247,0.15); color: #d8b4fe; }
+  .question-card-header .category-other { background: rgba(148,163,184,0.15); color: #cbd5e1; }
   
   .question-card-header .question-date {
     font-size: 0.9rem;

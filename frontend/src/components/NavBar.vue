@@ -125,8 +125,8 @@ let toastTimer: ReturnType<typeof setTimeout> | null = null
 const mainMenuItems = [
   { key: 'home', label: '主页', route: '/home', disabled: false },
   { key: 'plan', label: '学习计划', route: '/plan', disabled: false },
-  { key: 'gesp', label: 'GESP 客观题', route: '/select' },
-  { key: 'smartoj', label: 'GESP 编程题', route: '/smartoj', disabled: false },
+  { key: 'gesp', label: '客观题库', route: '/select' },
+  { key: 'smartoj', label: '编程题库', route: '/smartoj', disabled: false },
   { key: 'teacher', label: '教师管理', route: '/teacher', disabled: false }
 ]
 
