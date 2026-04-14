@@ -7,10 +7,24 @@ MCP Server 认证模块
 import logging
 import httpx
 import os
+import hashlib
 from typing import Dict, Optional
 from datetime import datetime
 
 logger = logging.getLogger("mcp_auth")
+
+# 超级管理员 API Keys（开发阶段硬编码）
+# 生产环境应从数据库 api_keys 表读取
+SUPER_ADMIN_KEYS = {
+    # czy (user_id=1) 的 MCP Key
+    # 明文: mcp_czy_d355dff9d06156de60747db70ad9978f
+    "mcp_czy_d355dff9d06156de60747db70ad9978f": {
+        "user_id": 1,
+        "username": "czy",
+        "is_super_admin": True,
+        "bypass_approval": True
+    }
+}
 
 
 class AuthManager:
@@ -32,6 +46,10 @@ class AuthManager:
             await self._client.aclose()
             self._client = None
 
+    def _hash_key(self, key: str) -> str:
+        """计算Key的SHA256哈希"""
+        return hashlib.sha256(key.encode()).hexdigest()
+
     async def verify_user_key(self, user_key: str) -> Optional[Dict]:
         """
         验证用户 MCP Key
@@ -42,7 +60,22 @@ class AuthManager:
         Returns:
             用户信息字典，或 None（无效）
         """
-        # 开发阶段：test_xxx 格式的key
+        # 1. 先检查硬编码的超级管理员Key
+        if user_key in SUPER_ADMIN_KEYS:
+            key_info = SUPER_ADMIN_KEYS[user_key]
+            user_info = await self._fetch_user_info(key_info["user_id"])
+            return {
+                "user_id": key_info["user_id"],
+                "username": key_info["username"],
+                "roles": ["super_admin", "admin"],
+                "permissions": ["*"],  # 全部权限
+                "is_admin": True,
+                "is_super_admin": True,
+                "bypass_approval": True,  # 跳过审批
+                "device": "any"
+            }
+
+        # 2. 检查test_xxx格式的开发Key
         if user_key.startswith("test_"):
             user_id_str = user_key.split("_")[1] if len(user_key.split("_")) > 1 else "1001"
             try:
@@ -50,7 +83,6 @@ class AuthManager:
             except ValueError:
                 return None
 
-            # 从Backend获取用户信息
             user_info = await self._fetch_user_info(user_id)
             if user_info:
                 return {
@@ -59,23 +91,25 @@ class AuthManager:
                     "roles": [r.get("name") for r in user_info.get("roles", [])],
                     "permissions": [p.get("name") for p in user_info.get("permissions", [])],
                     "is_admin": any(r.get("name") == "admin" for r in user_info.get("roles", [])),
+                    "is_super_admin": any(r.get("name") == "super_admin" for r in user_info.get("roles", [])),
+                    "bypass_approval": False,
                     "device": "test_device"
                 }
             else:
-                # 用户不存在，返回默认信息
                 return {
                     "user_id": user_id,
                     "username": f"test_user_{user_id}",
                     "roles": ["user"],
                     "permissions": [],
                     "is_admin": False,
+                    "is_super_admin": False,
+                    "bypass_approval": False,
                     "device": "test_device"
                 }
 
-        # TODO: 生产环境验证
-        # 1. 查询 api_keys 表
-        # 2. 检查是否有效、未过期
-        # 3. 返回用户信息
+        # 3. 生产环境：从数据库验证（TODO）
+        # key_hash = self._hash_key(user_key)
+        # 查询 api_keys 表...
 
         return None
 
@@ -104,6 +138,10 @@ class AuthManager:
         Returns:
             {"allowed": bool, "need_approval": bool, "reason": str}
         """
+        # 超级管理员有全部权限，跳过审批
+        if user_info.get("is_super_admin") or user_info.get("bypass_approval"):
+            return {"allowed": True, "need_approval": False}
+
         # 管理员有全部权限
         if user_info.get("is_admin"):
             return {"allowed": True, "need_approval": False}
@@ -116,7 +154,6 @@ class AuthManager:
         ]
 
         if tool in HIGH_RISK_TOOLS:
-            # 非管理员执行高风险操作需要审批
             return {
                 "allowed": False,
                 "need_approval": True,
@@ -143,6 +180,9 @@ class AuthManager:
 
         required_permission = TOOL_PERMISSIONS.get(tool)
         if required_permission and required_permission not in permissions:
+            # 如果有*权限则通过
+            if "*" in permissions:
+                return {"allowed": True, "need_approval": False}
             return {
                 "allowed": False,
                 "need_approval": False,

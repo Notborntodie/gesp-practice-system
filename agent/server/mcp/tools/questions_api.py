@@ -6,6 +6,7 @@
 
 import logging
 from typing import Dict, Any
+from datetime import datetime
 
 from server.mcp.tools import register_tool
 from server.backend_client.client import BackendClient
@@ -174,13 +175,18 @@ register_tool(
 # 更新题目（需审批）
 # ============================================================
 async def update_question(params: Dict, user_info: Dict) -> Dict:
-    """更新题目（敏感操作，需审批）"""
-    question_id = params.get("question_id")
-    if not question_id:
-        return {"error": "缺少 question_id"}
+    """更新题目（敏感操作）"""
+    # 超级管理员直接执行
+    if user_info.get("bypass_approval") or user_info.get("is_super_admin"):
+        question_id = params.get("question_id")
+        if not question_id:
+            return {"error": "缺少 question_id"}
 
-    # 此操作需要审批，不会直接执行
-    # 在 main.py 中会拦截并创建审批请求
+        update_data = params.get("update_data", {})
+        response = await backend.put(f"/api/questions/{question_id}", data=update_data)
+        return {"question_id": question_id, "message": "题目更新成功", "success": True}
+
+    # 普通用户需要审批
     return {"approval_required": True}
 
 
@@ -200,11 +206,21 @@ register_tool(
 # 删除题目（需审批）
 # ============================================================
 async def delete_question(params: Dict, user_info: Dict) -> Dict:
-    """删除题目（敏感操作，需审批）"""
-    question_id = params.get("question_id")
-    if not question_id:
-        return {"error": "缺少 question_id"}
+    """删除题目（敏感操作）"""
+    # 超级管理员直接执行
+    if user_info.get("bypass_approval") or user_info.get("is_super_admin"):
+        question_id = params.get("question_id")
+        if not question_id:
+            return {"error": "缺少 question_id"}
 
+        # 软删除：标记 deleted_at
+        response = await backend.put(f"/api/questions/{question_id}", data={
+            "deleted_at": datetime.now().isoformat(),
+            "deleted_by": user_info["user_id"]
+        })
+        return {"question_id": question_id, "message": "题目已删除", "success": True}
+
+    # 普通用户需要审批
     return {"approval_required": True}
 
 

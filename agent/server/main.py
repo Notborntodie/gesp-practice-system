@@ -172,7 +172,12 @@ async def call_tool(request: MCPToolRequest, http_request: Request):
         request.params
     )
 
-    if permission_check["need_approval"]:
+    # 超级管理员跳过审批
+    if user_info.get("bypass_approval") or user_info.get("is_super_admin"):
+        permission_check["need_approval"] = False
+        permission_check["allowed"] = True
+
+    if permission_check.get("need_approval"):
         # 敏感操作，提交审批
         approval_id = await app.state.approval_manager.create_request(
             teacher_id=user_info["user_id"],
@@ -183,6 +188,13 @@ async def call_tool(request: MCPToolRequest, http_request: Request):
             success=False,
             result={"approval_required": True, "approval_id": approval_id},
             error="敏感操作，需要管理员审批"
+        )
+
+    if not permission_check.get("allowed", True):
+        # 权限不足
+        return MCPToolResponse(
+            success=False,
+            error=permission_check.get("reason", "权限不足")
         )
 
     # 执行 Tool
