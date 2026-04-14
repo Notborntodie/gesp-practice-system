@@ -5,6 +5,14 @@
 
 ---
 
+**Commit**: da0b644 "feat: 为czy创建超级管理员MCP API Key"
+**Meta**:
+- 创建：czy的MCP API Key，超级管理员权限，跳过审批
+- 测试：delete_question直接执行，普通用户仍需审批
+- 待执行：database/migrate_api_keys.sql（生产环境数据库迁移）
+
+---
+
 ## 2026-04-15 会话记录
 
 **Commit**: c6efd06 "feat: MCP Server安全认证和bug修复"
