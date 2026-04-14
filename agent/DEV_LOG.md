@@ -5,6 +5,17 @@
 
 ---
 
+## 2026-04-15 会话记录
+
+**Commit**: c6efd06 "feat: MCP Server安全认证和bug修复"
+**Meta**:
+- 实现：真实API Key验证、基于role权限控制、header认证
+- 修复：list_exams bug、create_question返回null
+- 关键文件：server/auth/manager.py, server/main.py
+- 测试：list_exams返回69个考试，create_question返回question_id=2104
+
+---
+
 ## 2026-04-14 会话记录
 
 **Commit**: c075b55 "docs: 实现上下文↔文档调度机制"
