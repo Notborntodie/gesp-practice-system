@@ -14,7 +14,7 @@
 
 ---
 
-**Commit**: 72f77e8 "docs: 整理文档目录结构"
+**Commit**: b2ec839 "docs: 整理文档目录结构"
 **Meta**:
 - 实现：创建docs目录，整理文档位置，更新引用路径
 - 关键文件：docs/DESIGN.md, docs/RUNNING.md, docs/SECURITY.md
