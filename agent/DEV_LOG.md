@@ -7,11 +7,18 @@
 
 ## 2026-04-14 会话记录
 
-**Commit**: 8e879cc "docs: 实现上下文↔文档调度机制"
+**Commit**: c075b55 "docs: 实现上下文↔文档调度机制"
 **Meta**:
 - 实现：创建CLAUDE.md、配置SessionStart Hook、简化DEV_LOG格式
-- 关键文件：CLAUDE.md, .claude/settings.local.json, DEV_LOG.md
-- 待办：创建Agent HTTP API、安装Rust、集成测试
+- 关键文件：CLAUDE.md, .claude/settings.local.json
+
+---
+
+**Commit**: 72f77e8 "docs: 整理文档目录结构"
+**Meta**:
+- 实现：创建docs目录，整理文档位置，更新引用路径
+- 关键文件：docs/DESIGN.md, docs/RUNNING.md, docs/SECURITY.md
+- 规则：CLAUDE.md和DEV_LOG.md在根目录，其他文档在docs/
 
 ---
 

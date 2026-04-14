@@ -17,13 +17,15 @@ GESP Agent 是为gespgrowplan教育平台构建的智能助手，帮助教师通
 
 本项目使用**git commits + DEV_LOG.md**组合记录开发记忆：
 
-| 文档 | 内容 | 读取时机 |
-|------|------|----------|
-| **DEV_LOG.md** | 会话meta data + commit引用 | 会话开始时自动读取 |
-| **git commits** | 完整代码变更 + 详细说明 | 需要时git log查看 |
-| **DESIGN.md** | 系统架构设计 | 涉及架构决策时 |
-| **RUNNING.md** | 启动命令、端口配置 | 需要启动服务时 |
-| **SECURITY.md** | 安全设计、密钥管理 | 涉及认证权限时 |
+| 文档 | 位置 | 内容 | 读取时机 |
+|------|------|------|----------|
+| **DEV_LOG.md** | 根目录 | 会话meta data + commit引用 | 会话开始时自动读取 |
+| **CLAUDE.md** | 根目录 | 项目规则入口（本文件） | 每次会话加载 |
+| **docs/DESIGN.md** | docs/ | 系统架构设计 | 涉及架构决策时 |
+| **docs/RUNNING.md** | docs/ | 启动命令、端口配置 | 需要启动服务时 |
+| **docs/SECURITY.md** | docs/ | 安全设计、密钥管理 | 涉及认证权限时 |
+| **docs/DOC_STANDARD.md** | docs/ | 文档命名规范 | 创建新文档时参考 |
+| **git commits** | git log | 完整代码变更 + 详细说明 | 需要时git log查看 |
 
 ---
 
