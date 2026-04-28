@@ -231,13 +231,13 @@
 
     <!-- 选择试卷弹窗 -->
     <ExamSelectorDialog
-      v-if="showExamSelectorDialog"
+      :visible="showExamSelectorDialog"
       @close="showExamSelectorDialog = false"
       @select="handleExamSelect"
     />
     <!-- 选择OJ题目弹窗 -->
     <OJSelectorDialog
-      v-if="showOJSelectorDialog"
+      :visible="showOJSelectorDialog"
       @close="showOJSelectorDialog = false"
       @select="handleOJSelect"
     />

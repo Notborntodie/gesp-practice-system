@@ -1,158 +1,194 @@
 <template>
-  <div class="selector-overlay" @click="$emit('close')">
-    <div class="selector-content" @click.stop>
-      <div class="selector-header">
-        <h3>选择试卷</h3>
-        <button class="close-btn" @click="$emit('close')">
-          ×
-        </button>
+  <AppDialog
+    v-model:show="dialogVisible"
+    title="选择试卷"
+    width="700"
+    :show-footer="false"
+  >
+    <!-- Search and Filter -->
+    <div class="search-section">
+      <AppInput
+        v-model="searchKeyword"
+        placeholder="搜索试卷名称..."
+        clearable
+      />
+      <AppSelect
+        v-model="selectedCategory"
+        :options="categoryOptions"
+        placeholder="题目来源"
+      />
+      <AppSelect
+        v-model="selectedLevel"
+        :options="levelOptions"
+        placeholder="全部级别"
+      />
+    </div>
+
+    <!-- Exam List -->
+    <div class="exam-list">
+      <div v-if="loading" class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>加载中...</p>
       </div>
-
-      <div class="selector-body">
-        <!-- 搜索和筛选 -->
-        <div class="search-section">
-          <input 
-            v-model="searchKeyword" 
-            type="text" 
-            placeholder="搜索试卷名称..." 
-            class="search-input"
-          />
-          <select v-model="selectedLevel" class="level-filter">
-            <option value="">全部级别</option>
-            <option value="1">GESP 1级</option>
-            <option value="2">GESP 2级</option>
-            <option value="3">GESP 3级</option>
-            <option value="4">GESP 4级</option>
-            <option value="5">GESP 5级</option>
-            <option value="6">GESP 6级</option>
-          </select>
-        </div>
-
-        <!-- 试卷列表 -->
-        <div class="exam-list">
-          <div v-if="loading" class="loading">
-            <div class="spinner">⟲</div>
-            加载中...
-          </div>
-          <div v-else-if="filteredExams.length === 0" class="empty-state">
-            <div class="empty-icon">📭</div>
-            <p>{{ exams.length === 0 ? '暂无试卷' : '没有符合条件的试卷' }}</p>
-          </div>
-          <div 
-            v-else
-            v-for="exam in filteredExams" 
-            :key="exam.id"
-            class="exam-item"
-            :class="{ selected: selectedExams.includes(exam.id) }"
-            @click="toggleExam(exam.id)"
-          >
-            <div class="exam-info">
-              <div class="exam-title">{{ exam.name }}</div>
-              <div class="exam-meta">
-                <span class="meta-item">
-                  <span class="meta-icon">📊</span>
-                  GESP {{ exam.level }}级
-                </span>
-                <span class="meta-item">
-                  <span class="meta-icon">❓</span>
-                  {{ exam.question_count }}题
-                </span>
-                <span class="meta-item">
-                  <span class="meta-icon">🕒</span>
-                  {{ exam.duration }}分钟
-                </span>
-              </div>
-            </div>
-            <div class="exam-checkbox">
-              <span v-if="selectedExams.includes(exam.id)" class="checkbox-checked">✓</span>
-              <span v-else class="checkbox-unchecked">○</span>
-            </div>
+      <AppEmptyState v-else-if="filteredExams.length === 0" type="empty" description="暂无试卷" />
+      <div
+        v-else
+        v-for="exam in filteredExams"
+        :key="exam.id"
+        class="exam-item"
+        :class="{ selected: selectedExams.includes(exam.id) }"
+        @click="toggleExam(exam.id)"
+      >
+        <div class="exam-info">
+          <div class="exam-title">{{ exam.name }}</div>
+          <div class="exam-meta">
+            <AppTag type="info" size="sm">{{ getCategoryLabel(exam.category) }}{{ exam.level ? ` ${exam.level}级` : '' }}</AppTag>
+            <AppTag type="default" size="sm">{{ exam.question_count || exam.total_questions || 0 }}题</AppTag>
+            <AppTag v-if="exam.type" type="default" size="sm">{{ exam.type }}</AppTag>
           </div>
         </div>
-      </div>
-
-      <div class="selector-footer">
-        <div class="selected-count">已选择: {{ selectedExams.length }}</div>
-        <div class="footer-actions">
-          <button class="btn-cancel" @click="$emit('close')">取消</button>
-          <button class="btn-confirm" @click="handleConfirm" :disabled="selectedExams.length === 0">
-            确定
-          </button>
+        <div class="exam-checkbox">
+          <CheckCircle2 v-if="selectedExams.includes(exam.id)" :size="24" class="checked" />
+          <Circle v-else :size="24" class="unchecked" />
         </div>
       </div>
     </div>
-  </div>
+
+    <!-- Footer -->
+    <div class="dialog-footer">
+      <div class="selected-count">
+        <AppTag type="primary">已选择: {{ selectedExams.length }}</AppTag>
+      </div>
+      <div class="footer-actions">
+        <AppButton variant="ghost" @click="$emit('close')">取消</AppButton>
+        <AppButton variant="primary" :disabled="selectedExams.length === 0" @click="handleConfirm">
+          确定
+        </AppButton>
+      </div>
+    </div>
+  </AppDialog>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import axios from 'axios'
+import { BASE_URL } from '@/config/api'
 
+// UI Components
+import AppDialog from '@/components/ui/AppDialog.vue'
+import AppInput from '@/components/ui/AppInput.vue'
+import AppSelect from '@/components/ui/AppSelect.vue'
+import AppButton from '@/components/ui/AppButton.vue'
+import AppTag from '@/components/ui/AppTag.vue'
+import AppEmptyState from '@/components/ui/AppEmptyState.vue'
+
+// Lucide Icons
+import { CheckCircle2, Circle } from 'lucide-vue-next'
+
+// Stores
+import { useQuestionTypeStore } from '@/stores/questionTypeStore'
+
+const questionTypeStore = useQuestionTypeStore()
+
+// Props
+interface Props {
+  visible: boolean
+}
+
+const props = defineProps<Props>()
+
+// Emits
 const emit = defineEmits(['close', 'select'])
 
-import { BASE_URL } from '@/config/api'
+// Dialog visibility
+const dialogVisible = computed({
+  get: () => props.visible,
+  set: () => emit('close')
+})
 
 const loading = ref(false)
 const exams = ref<any[]>([])
 const selectedExams = ref<number[]>([])
 const searchKeyword = ref('')
+const selectedCategory = ref('')
 const selectedLevel = ref('')
 
-// 过滤后的试卷列表
+// Category options from store
+const categoryOptions = computed(() => {
+  const types = questionTypeStore.allTypes.value || []
+  return [
+    { label: '全部来源', value: '' },
+    ...types.map((t: any) => ({ label: t.display_name || t.name, value: t.name }))
+  ]
+})
+
+// Level options - 根据选择的来源动态生成
+const levelOptions = computed(() => {
+  const levels = [
+    { label: '全部级别', value: '' }
+  ]
+  // GESP 有1-8级
+  if (selectedCategory.value === 'GESP' || selectedCategory.value === '') {
+    for (let n = 1; n <= 8; n++) {
+      levels.push({ label: `GESP ${n}级`, value: String(n) })
+    }
+  }
+  // 其他来源可能有自己的级别体系，这里可以扩展
+  return levels
+})
+
+// Get category label
+function getCategoryLabel(category: string): string {
+  const types = questionTypeStore.allTypes.value || []
+  const type = types.find((t: any) => t.name === category)
+  return type?.display_name || category || 'GESP'
+}
+
+// Filtered exams
 const filteredExams = computed(() => {
   let result = exams.value
 
-  // 按级别筛选
+  // 先按来源筛选
+  if (selectedCategory.value) {
+    result = result.filter(exam => exam.category === selectedCategory.value)
+  }
+
+  // 再按等级筛选
   if (selectedLevel.value) {
     result = result.filter(exam => String(exam.level) === selectedLevel.value)
   }
 
-  // 按关键词搜索
+  // 最后按关键词搜索
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase()
-    result = result.filter(exam => 
-      exam.name.toLowerCase().includes(keyword)
-    )
+    result = result.filter(exam => exam.name.toLowerCase().includes(keyword))
   }
 
   return result
 })
 
-// 获取试卷列表
+// Fetch exams
 async function fetchExams() {
   loading.value = true
   try {
-    console.log('📡 [ExamSelector] 开始获取试卷列表...')
     const response = await axios.get(`${BASE_URL}/exams`, { params: { include_all: 1 } })
-    
-    console.log('📡 [ExamSelector] API响应:', response.data)
-    
-    // API返回的数据直接是数组，不是包装在 {success, data} 中
+
     if (Array.isArray(response.data)) {
       exams.value = response.data
-      console.log('✅ [ExamSelector] 试卷数量:', exams.value.length)
-      if (exams.value.length > 0) {
-        console.log('📋 [ExamSelector] 第一个试卷:', exams.value[0])
-      } else {
-        console.warn('⚠️ [ExamSelector] 试卷列表为空')
-      }
     } else if (response.data.success) {
-      // 如果是包装格式，也支持
       exams.value = response.data.data || []
-      console.log('✅ [ExamSelector] 试卷数量:', exams.value.length)
     } else {
-      console.warn('⚠️ [ExamSelector] 未知的响应格式')
       exams.value = []
     }
   } catch (error) {
-    console.error('❌ [ExamSelector] 获取试卷列表失败:', error)
-    alert('获取试卷列表失败')
+    console.error('获取试卷列表失败:', error)
+    exams.value = []
   } finally {
     loading.value = false
   }
 }
 
-// 切换选择
+// Toggle selection
 function toggleExam(examId: number) {
   const index = selectedExams.value.indexOf(examId)
   if (index > -1) {
@@ -162,181 +198,93 @@ function toggleExam(examId: number) {
   }
 }
 
-// 确认选择
+// Confirm selection
 function handleConfirm() {
   emit('select', selectedExams.value)
 }
 
+// Reset when dialog opens
+watch(() => props.visible, (visible) => {
+  if (visible) {
+    selectedExams.value = []
+    searchKeyword.value = ''
+    selectedCategory.value = ''
+    selectedLevel.value = ''
+    fetchExams()
+    questionTypeStore.fetchQuestionTypes()
+  }
+})
+
 onMounted(() => {
-  fetchExams()
+  questionTypeStore.fetchQuestionTypes()
 })
 </script>
 
 <style scoped>
-.selector-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 10001;
-}
-
-.selector-content {
-  background: white;
-  border-radius: 16px;
-  width: 90%;
-  max-width: 700px;
-  max-height: 80vh;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.selector-header {
-  background: linear-gradient(135deg, #1e90ff 0%, #38bdf8 100%);
-  padding: 20px 24px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.selector-header h3 {
-  color: white;
-  font-size: 1.3rem;
-  font-weight: 700;
-  margin: 0;
-}
-
-.close-btn {
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  color: white;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  font-family: Arial, sans-serif;
-  line-height: 1;
-}
-
-.close-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.selector-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px 24px;
-}
-
 .search-section {
   display: flex;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
-.search-input {
+.search-section > * {
   flex: 1;
-  padding: 10px 14px;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
 }
 
-.search-input:focus {
-  outline: none;
-  border-color: #1e90ff;
-}
-
-.level-filter {
-  padding: 10px 14px;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.level-filter:focus {
-  outline: none;
-  border-color: #1e90ff;
+.search-section > *:first-child {
+  flex: 2;
 }
 
 .exam-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-2);
+  max-height: 400px;
+  overflow-y: auto;
 }
 
-.loading {
-  text-align: center;
-  padding: 40px 20px;
-  color: #1e90ff;
-  font-size: 16px;
+.loading-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  padding: var(--space-6);
+  color: var(--color-text-muted);
 }
 
-.spinner {
-  font-size: 24px;
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
   animation: spin 1s linear infinite;
-  color: #1e90ff;
+  margin-bottom: var(--space-3);
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-  color: #64748b;
-}
-
-.empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-  opacity: 0.5;
-}
-
-.empty-state p {
-  font-size: 16px;
-  margin: 0;
+  to { transform: rotate(360deg); }
 }
 
 .exam-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
-  background: #f8fafc;
-  border: 2px solid #e2e8f0;
-  border-radius: 12px;
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all var(--transition-fast);
 }
 
 .exam-item:hover {
-  border-color: #1e90ff;
-  background: #f0f9ff;
+  border-color: var(--color-primary-light);
+  background: var(--color-muted);
 }
 
 .exam-item.selected {
-  border-color: #1e90ff;
-  background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
+  border-color: var(--color-primary);
+  background: var(--color-primary-lightest);
 }
 
 .exam-info {
@@ -344,96 +292,37 @@ onMounted(() => {
 }
 
 .exam-title {
-  color: #1e293b;
+  color: var(--color-foreground);
   font-weight: 600;
-  font-size: 15px;
-  margin-bottom: 8px;
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-2);
 }
 
 .exam-meta {
   display: flex;
-  gap: 16px;
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
-.meta-item {
-  color: #64748b;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.exam-checkbox .checked {
+  color: var(--color-primary);
 }
 
-.meta-icon {
-  font-size: 14px;
+.exam-checkbox .unchecked {
+  color: var(--color-text-muted);
 }
 
-.exam-checkbox {
-  font-size: 24px;
-}
-
-.checkbox-checked {
-  color: #1e90ff;
-  font-weight: bold;
-}
-
-.checkbox-unchecked {
-  color: #cbd5e1;
-}
-
-.selector-footer {
-  padding: 16px 24px;
-  border-top: 1px solid #e2e8f0;
-  background: #f8fafc;
+.dialog-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-
-.selected-count {
-  color: #1e90ff;
-  font-weight: 600;
-  font-size: 14px;
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
 }
 
 .footer-actions {
   display: flex;
-  gap: 12px;
-}
-
-.btn-cancel,
-.btn-confirm {
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: none;
-}
-
-.btn-cancel {
-  background: #f1f5f9;
-  color: #64748b;
-}
-
-.btn-cancel:hover {
-  background: #e2e8f0;
-}
-
-.btn-confirm {
-  background: linear-gradient(135deg, #1e90ff 0%, #38bdf8 100%);
-  color: white;
-}
-
-.btn-confirm:hover:not(:disabled) {
-  background: linear-gradient(135deg, #0c7cd5 0%, #1e90ff 100%);
-}
-
-.btn-confirm:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  gap: var(--space-3);
 }
 </style>
-
-

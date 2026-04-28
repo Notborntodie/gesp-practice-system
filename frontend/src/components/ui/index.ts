@@ -1,0 +1,20 @@
+// UI wrapper components — unified design system styling
+export { default as AppButton } from './AppButton.vue'
+export { default as AppInput } from './AppInput.vue'
+export { default as AppSelect } from './AppSelect.vue'
+export { default as AppDatePicker } from './AppDatePicker.vue'
+export { default as AppDataTable } from './AppDataTable.vue'
+export { default as AppCard } from './AppCard.vue'
+export { default as AppDialog } from './AppDialog.vue'
+export { default as AppFormDialog } from './AppFormDialog.vue'
+export { default as AppFormField } from './AppFormField.vue'
+export { default as AppTextarea } from './AppTextarea.vue'
+export { default as AppTag } from './AppTag.vue'
+export { default as AppFilterBar } from './AppFilterBar.vue'
+export { default as AppPageHeader } from './AppPageHeader.vue'
+export { default as AppEmptyState } from './AppEmptyState.vue'
+export { default as AppSidebar } from './AppSidebar.vue'
+export { default as AppConfirmDialog } from './AppConfirmDialog.vue'
+
+// Admin components
+export { default as AdminPageTemplate } from '../admin/AdminPageTemplate.vue'

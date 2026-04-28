@@ -227,7 +227,7 @@ async function submitOjInternal(connection, user_id, problem_id, code, language,
 router.post('/oj/run', async (req, res) => {
   try {
     const { code, language, input, output: expected } = req.body;
-    
+
     // 参数验证
     if (!code || !language) {
       return res.status(400).json({
@@ -238,7 +238,7 @@ router.post('/oj/run', async (req, res) => {
         error: '缺少必要参数：code 和 language'
       });
     }
-    
+
     // 验证语言支持（仅支持 C++）
     const supportedLanguages = ['cpp'];
     if (!supportedLanguages.includes(language)) {
@@ -250,7 +250,7 @@ router.post('/oj/run', async (req, res) => {
         error: `不支持的语言: ${language}。当前仅支持: ${supportedLanguages.join(', ')}`
       });
     }
-    
+
     // 代码长度限制（防止恶意代码）
     if (code.length > 50000) {
       return res.status(400).json({
@@ -261,31 +261,31 @@ router.post('/oj/run', async (req, res) => {
         error: '代码长度超过限制（最大 50000 字符）'
       });
     }
-    
+
     logger.info('收到代码运行请求', {
       language,
       codeLength: code.length,
       inputLength: input ? input.length : 0
     });
-    
+
     // 【优化】使用 isolate 轻量级沙箱运行代码（快10-20倍）
     const sample = {
       input: input || '',
       output: expected || '',
       is_hidden: false
     };
-    
+
     // 在线运行使用默认限制（5秒，256MB）
     const judgeResult = await judgeCode(code, [sample], {
       timeLimit: 5000,
       memoryLimit: 256
     });
-    
+
     // 获取运行结果
     const testResult = judgeResult.results[0];
     const actual = testResult.actual || '';
     const success = testResult.passed;
-    
+
     // 返回结果
     res.json({
       success,
@@ -295,10 +295,10 @@ router.post('/oj/run', async (req, res) => {
       error: testResult.error || null,
       duration: testResult.duration  // 额外返回执行时间
     });
-    
+
   } catch (error) {
     logger.error('代码运行失败', { error: error.message, stack: error.stack });
-    
+
     res.status(500).json({
       success: false,
       input: req.body.input || '',
@@ -308,6 +308,179 @@ router.post('/oj/run', async (req, res) => {
     });
   }
 });
+
+/**
+ * Agent 代码验证接口（多测试点）
+ * POST /api/oj/test-run
+ *
+ * 用于 Agent 创建题目时验证参考代码
+ *
+ * 请求体:
+ * {
+ *   "code": "代码",
+ *   "language": "python/cpp/c",
+ *   "test_cases": [
+ *     { "input": "输入", "expected_output": "期望输出" }
+ *   ],
+ *   "time_limit": 1000,     // ms，可选
+ *   "memory_limit": 256     // MB，可选
+ * }
+ *
+ * 响应:
+ * {
+ *   "verdict": "AC/WA/TLE/CE/MLE/RE",
+ *   "passed_cases": 5,
+ *   "total_cases": 5,
+ *   "execution_time_ms": 50,
+ *   "memory_used_kb": 1024,
+ *   "results": [
+ *     {
+ *       "verdict": "AC",
+ *       "actual_output": "...",
+ *       "diff": null
+ *     }
+ *   ]
+ * }
+ */
+router.post('/oj/test-run', async (req, res) => {
+  try {
+    const {
+      code,
+      language = 'cpp',
+      test_cases = [],
+      time_limit = 1000,
+      memory_limit = 256
+    } = req.body;
+
+    // 参数验证
+    if (!code) {
+      return res.status(400).json({
+        verdict: 'CE',
+        error: '缺少必要参数：code'
+      });
+    }
+
+    if (!Array.isArray(test_cases) || test_cases.length === 0) {
+      return res.status(400).json({
+        verdict: 'CE',
+        error: '缺少测试数据：test_cases'
+      });
+    }
+
+    // 代码长度限制
+    if (code.length > 50000) {
+      return res.status(400).json({
+        verdict: 'CE',
+        error: '代码长度超过限制（最大 50000 字符）'
+      });
+    }
+
+    // 语言支持（扩展支持 python 和 c）
+    const supportedLanguages = ['cpp', 'c', 'python'];
+    if (!supportedLanguages.includes(language)) {
+      return res.status(400).json({
+        verdict: 'CE',
+        error: `不支持的语言: ${language}。支持: ${supportedLanguages.join(', ')}`
+      });
+    }
+
+    logger.info('Agent 代码验证请求', {
+      language,
+      codeLength: code.length,
+      testCasesCount: test_cases.length,
+      timeLimit: time_limit,
+      memoryLimit: memory_limit
+    });
+
+    // 转换测试数据格式
+    const samples = test_cases.map(tc => ({
+      input: tc.input || '',
+      output: tc.expected_output || tc.expected || '',
+      is_hidden: false
+    }));
+
+    // 执行判题
+    const judgeStart = Date.now();
+    let judgeResult;
+
+    try {
+      judgeResult = await judgeCode(code, samples, {
+        timeLimit: time_limit,
+        memoryLimit: memory_limit
+      });
+    } catch (judgeError) {
+      logger.error('判题执行失败', { error: judgeError.message });
+      return res.json({
+        verdict: 'RE',
+        passed_cases: 0,
+        total_cases: test_cases.length,
+        error: judgeError.message,
+        results: []
+      });
+    }
+
+    const executionTime = Date.now() - judgeStart;
+
+    // 构建详细结果
+    const results = judgeResult.results.map((r, i) => ({
+      test_case_id: i + 1,
+      verdict: r.passed ? 'AC' : (r.error ? 'RE' : 'WA'),
+      actual_output: r.actual || '',
+      expected_output: samples[i].output,
+      execution_time_ms: r.duration || 0,
+      diff: r.passed ? null : generateDiff(samples[i].output, r.actual || '')
+    }));
+
+    // 返回结果
+    res.json({
+      verdict: judgeResult.verdict,
+      passed_cases: judgeResult.passedTests,
+      total_cases: judgeResult.totalTests,
+      execution_time_ms: executionTime,
+      results,
+      error: null
+    });
+
+  } catch (error) {
+    logger.error('Agent 代码验证失败', { error: error.message, stack: error.stack });
+
+    res.status(500).json({
+      verdict: 'RE',
+      passed_cases: 0,
+      total_cases: req.body.test_cases?.length || 0,
+      error: error.message || '代码验证失败',
+      results: []
+    });
+  }
+});
+
+/**
+ * 生成差异对比（用于 WA 时显示）
+ */
+function generateDiff(expected, actual) {
+  if (!expected || !actual) return null;
+
+  const expectedLines = expected.split('\n');
+  const actualLines = actual.split('\n');
+
+  const diffs = [];
+  const maxLines = Math.max(expectedLines.length, actualLines.length);
+
+  for (let i = 0; i < maxLines; i++) {
+    const exp = expectedLines[i] || '';
+    const act = actualLines[i] || '';
+
+    if (exp !== act) {
+      diffs.push({
+        line: i + 1,
+        expected: exp,
+        actual: act
+      });
+    }
+  }
+
+  return diffs.length > 0 ? diffs : null;
+}
 
 
 // ================================================================

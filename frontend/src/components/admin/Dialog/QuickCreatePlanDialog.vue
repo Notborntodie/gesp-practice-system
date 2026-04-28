@@ -1,102 +1,116 @@
 <template>
-  <div v-if="visible" class="modal-overlay" @click="$emit('close')">
-    <div class="modal-content" @click.stop>
-      <div class="modal-header">
-        <h3>快速创建学习计划</h3>
-        <button class="modal-close-btn" @click="$emit('close')">
-          <i class="fas fa-times"></i>
-        </button>
+  <AppDialog
+    v-model:show="dialogVisible"
+    title="快速创建学习计划"
+    width="560"
+    :show-footer="false"
+  >
+    <!-- Form Section -->
+    <div class="form-section">
+      <div class="form-grid">
+        <AppFormField label="分类">
+          <AppSelect
+            v-model="formData.category"
+            :options="categoryOptions"
+          />
+        </AppFormField>
+        <AppFormField v-if="formData.category === 'GESP'" label="级别">
+          <AppSelect
+            v-model="formData.level"
+            :options="levelOptions"
+          />
+        </AppFormField>
       </div>
 
-      <div class="modal-body">
-        <div class="form-section">
-          <div class="form-row">
-            <div class="form-group">
-              <label>分类</label>
-              <select v-model="formData.category">
-                <option v-for="type in allQuestionTypes" :key="type.name" :value="type.name">
-                  {{ type.display_name || type.name }}
-                </option>
-              </select>
-            </div>
-            <div class="form-group" v-if="formData.category === 'GESP'">
-              <label>级别</label>
-              <select v-model="formData.level">
-                <option v-for="n in 8" :key="n" :value="String(n)">GESP {{ n }}级</option>
-              </select>
-            </div>
-          </div>
+      <AppFormField label="计划名称" required>
+        <AppInput
+          v-model="formData.name"
+          :placeholder="suggestedNamePlaceholder"
+        />
+      </AppFormField>
 
-          <div class="form-group">
-            <label>计划名称<span class="required">*</span></label>
-            <input v-model="formData.name" type="text" placeholder="请输入计划名称" />
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label>开始时间<span class="required">*</span></label>
-              <input v-model="formData.start_time" type="date" />
-            </div>
-            <div class="form-group">
-              <label>结束时间<span class="required">*</span></label>
-              <input v-model="formData.end_time" type="date" />
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>任务数量</label>
-            <div class="task-count-control">
-              <button class="count-btn" @click="changeTaskCount(-1)" :disabled="formData.taskCount <= 1">
-                <i class="fas fa-minus"></i>
-              </button>
-              <span class="count-value">{{ formData.taskCount }}</span>
-              <button class="count-btn" @click="changeTaskCount(1)" :disabled="formData.taskCount >= 20">
-                <i class="fas fa-plus"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- 任务预览 -->
-        <div class="form-section" v-if="formData.start_time && formData.end_time && formData.taskCount > 0">
-          <h4>任务预览</h4>
-          <div class="task-preview-list">
-            <div v-for="(task, index) in taskPreview" :key="index" class="task-preview-item">
-              <span class="task-index">{{ index + 1 }}</span>
-              <span class="task-name">{{ task.name }}</span>
-              <span class="task-time">{{ task.startLabel }} — {{ task.endLabel }}</span>
-            </div>
-          </div>
-        </div>
+      <div class="form-grid">
+        <AppFormField label="开始时间" required>
+          <AppInput v-model="formData.start_time" type="date" />
+        </AppFormField>
+        <AppFormField label="结束时间" required>
+          <AppInput v-model="formData.end_time" type="date" />
+        </AppFormField>
       </div>
 
-      <div class="modal-footer">
-        <button class="btn-cancel" @click="$emit('close')">取消</button>
-        <button class="btn-confirm" :disabled="submitting" @click="handleSubmit">
-          {{ submitting ? '创建中...' : '创建并编辑详情' }}
-        </button>
+      <AppFormField label="任务数量">
+        <div class="task-count-control">
+          <AppButton variant="ghost" size="sm" :disabled="formData.taskCount <= 1" @click="changeTaskCount(-1)">
+            <Minus :size="16" />
+          </AppButton>
+          <span class="count-value">{{ formData.taskCount }}</span>
+          <AppButton variant="ghost" size="sm" :disabled="formData.taskCount >= 20" @click="changeTaskCount(1)">
+            <Plus :size="16" />
+          </AppButton>
+        </div>
+      </AppFormField>
+    </div>
+
+    <!-- Task Preview -->
+    <div v-if="formData.start_time && formData.end_time && formData.taskCount > 0" class="preview-section">
+      <h6>任务预览</h6>
+      <div class="task-preview-list">
+        <div v-for="(task, index) in taskPreview" :key="index" class="task-preview-item">
+          <span class="task-index">{{ index + 1 }}</span>
+          <span class="task-name">{{ task.name }}</span>
+          <span class="task-time">{{ task.startLabel }} — {{ task.endLabel }}</span>
+        </div>
       </div>
     </div>
-  </div>
+
+    <!-- Footer -->
+    <div class="dialog-footer">
+      <AppButton variant="ghost" @click="$emit('close')">取消</AppButton>
+      <AppButton variant="primary" :disabled="submitting" :loading="submitting" @click="handleSubmit">
+        创建并编辑详情
+      </AppButton>
+    </div>
+  </AppDialog>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import axios from 'axios'
-import { useQuestionTypeStore } from '@/stores/questionTypeStore'
 import { BASE_URL } from '@/config/api'
 
+// UI Components
+import AppDialog from '@/components/ui/AppDialog.vue'
+import AppInput from '@/components/ui/AppInput.vue'
+import AppSelect from '@/components/ui/AppSelect.vue'
+import AppButton from '@/components/ui/AppButton.vue'
+import AppFormField from '@/components/ui/AppFormField.vue'
+
+// Lucide Icons
+import { Plus, Minus } from 'lucide-vue-next'
+
+// Stores
+import { useQuestionTypeStore } from '@/stores/questionTypeStore'
+
 const questionTypeStore = useQuestionTypeStore()
-const { allQuestionTypes, fetchQuestionTypes } = questionTypeStore
 
-const props = defineProps<{
+// Props
+interface Props {
   visible: boolean
-}>()
+}
 
+const props = defineProps<Props>()
+
+// Emits
 const emit = defineEmits<{
   close: []
   'created-with-id': [planId: number]
 }>()
+
+// Dialog visibility
+const dialogVisible = computed({
+  get: () => props.visible,
+  set: () => emit('close')
+})
 
 const formData = ref({
   category: 'GESP',
@@ -109,22 +123,29 @@ const formData = ref({
 
 const submitting = ref(false)
 
+// Options
+const categoryOptions = computed(() => {
+  const types = questionTypeStore.allTypes.value || []
+  return types.map((t: any) => ({ label: t.display_name || t.name, value: t.name }))
+})
+
+const levelOptions = computed(() => {
+  const levels = []
+  for (let n = 1; n <= 8; n++) {
+    levels.push({ label: `GESP ${n}级`, value: String(n) })
+  }
+  return levels
+})
+
 // 分类或级别变化时自动更新名称建议
-const suggestedName = computed(() => {
-  if (formData.value.name) return formData.value.name
-  const cat = allQuestionTypes.value.find(t => t.name === formData.value.category)
+const suggestedNamePlaceholder = computed(() => {
+  const cat = questionTypeStore.allTypes.value.find((t: any) => t.name === formData.value.category)
   const catName = cat?.display_name || cat?.name || formData.value.category
   if (formData.value.category === 'GESP') {
     return `${catName} ${formData.value.level}级学习计划`
   }
   return `${catName} 学习计划`
 })
-
-watch(() => [formData.value.category, formData.value.level], () => {
-  if (!formData.value.name) {
-    // name is empty, suggestedName will auto-update via computed
-  }
-}, { immediate: true })
 
 // 任务预览
 const taskPreview = computed(() => {
@@ -163,7 +184,8 @@ function changeTaskCount(delta: number) {
 }
 
 async function handleSubmit() {
-  if (!suggestedName.value) {
+  const planName = formData.value.name || suggestedNamePlaceholder.value
+  if (!planName) {
     alert('请填写计划名称')
     return
   }
@@ -208,7 +230,7 @@ async function handleSubmit() {
     }
 
     const payload = {
-      name: suggestedName.value,
+      name: planName,
       description: '',
       category: formData.value.category,
       level: formData.value.category === 'GESP' ? parseInt(formData.value.level) : null,
@@ -234,255 +256,107 @@ async function handleSubmit() {
 }
 
 onMounted(() => {
-  fetchQuestionTypes()
+  questionTypeStore.fetchQuestionTypes()
 })
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 10000;
-  backdrop-filter: blur(4px);
-}
-
-.modal-content {
-  background: white;
-  border-radius: 20px;
-  width: 90%;
-  max-width: 560px;
-  max-height: 90vh;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.modal-header {
-  background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
-  padding: 20px 24px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.modal-header h3 {
-  color: white;
-  font-size: 1.3rem;
-  font-weight: 700;
-  margin: 0;
-}
-
-.modal-close-btn {
-  background: rgba(255, 255, 255, 0.2);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 10px;
-  color: white;
-  width: 36px;
-  height: 36px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
-}
-
-.modal-close-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.modal-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px 24px;
-}
-
 .form-section {
-  margin-bottom: 20px;
-  padding: 16px;
-  background: #f8fafc;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  padding: var(--space-4);
+  background: var(--color-muted);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
 }
 
-.form-section h4 {
-  margin: 0 0 12px 0;
-  color: #1e293b;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.form-group {
-  margin-bottom: 14px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 6px;
-  color: #1e293b;
-  font-weight: 600;
-  font-size: 13px;
-}
-
-.required {
-  color: #ef4444;
-  margin-left: 4px;
-}
-
-.form-group input,
-.form-group select {
-  width: 100%;
-  padding: 10px 14px;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
-  transition: all 0.3s ease;
-  box-sizing: border-box;
-}
-
-.form-group input:focus,
-.form-group select:focus {
-  outline: none;
-  border-color: #10b981;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
-}
-
-.form-row {
+.form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 14px;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
 }
 
 .task-count-control {
   display: flex;
   align-items: center;
-  gap: 16px;
-}
-
-.count-btn {
-  width: 36px;
-  height: 36px;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
-  background: white;
-  color: #1e293b;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  font-size: 12px;
-}
-
-.count-btn:hover:not(:disabled) {
-  border-color: #10b981;
-  color: #10b981;
-}
-
-.count-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+  gap: var(--space-3);
 }
 
 .count-value {
-  font-size: 20px;
+  font-size: var(--font-size-lg);
   font-weight: 700;
-  color: #1e293b;
-  min-width: 32px;
+  color: var(--color-foreground);
+  min-width: 40px;
   text-align: center;
+}
+
+.preview-section {
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.preview-section h6 {
+  margin: 0 0 var(--space-3);
+  color: var(--color-foreground);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
 }
 
 .task-preview-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-2);
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .task-preview-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  background: white;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  font-size: 13px;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-muted);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
 }
 
 .task-index {
   width: 24px;
   height: 24px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: var(--font-size-xs);
   font-weight: 700;
-  flex-shrink: 0;
 }
 
 .task-name {
-  color: #1e293b;
+  color: var(--color-foreground);
   font-weight: 600;
+  font-size: var(--font-size-sm);
   flex: 1;
 }
 
 .task-time {
-  color: #64748b;
-  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
 }
 
-.modal-footer {
-  padding: 16px 24px;
-  border-top: 1px solid #e2e8f0;
-  background: #f8fafc;
+.dialog-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
 }
 
-.btn-cancel,
-.btn-confirm {
-  padding: 10px 20px;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: none;
-}
-
-.btn-cancel {
-  background: #f1f5f9;
-  color: #64748b;
-}
-
-.btn-cancel:hover {
-  background: #e2e8f0;
-}
-
-.btn-confirm {
-  background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
-  color: white;
-}
-
-.btn-confirm:hover:not(:disabled) {
-  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-}
-
-.btn-confirm:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+@media (max-width: 768px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

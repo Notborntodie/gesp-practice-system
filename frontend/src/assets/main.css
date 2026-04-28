@@ -1,38 +1,116 @@
+
 @import './base.css';
+@import './admin-transitional.css';
 
 #app {
-  margin: 0;
-  padding: 0;
-  font-weight: normal;
   width: 100%;
-  overflow-x: hidden;
+  min-height: 100vh;
 }
 
-a,
-.green {
+/* ========== Main Content Area ========== */
+.main-content {
+  padding-top: var(--navbar-height);
+  min-height: calc(100vh - var(--navbar-height));
+  width: 100%;
+}
+
+/* ========== Link Styles ========== */
+a {
+  color: var(--color-primary);
   text-decoration: none;
-  color: hsla(160, 100%, 37%, 1);
-  transition: 0.4s;
-  padding: 3px;
+  transition: color var(--transition-fast);
 }
 
-@media (hover: hover) {
-  a:hover {
-    background-color: hsla(160, 100%, 37%, 0.2);
-  }
+a:hover {
+  color: var(--color-secondary);
 }
 
-@media (min-width: 1400px) {
-  body {
-    display: flex;
-    place-items: center;
-  }
+/* ========== Utility Classes ========== */
+.cursor-pointer {
+  cursor: pointer;
+}
 
-  /* 动画页面、公开查分/计划进度页使用单栏全宽，避免双栏导致缩小浏览器时布局异常 */
-  #app:not(.animation-page):not(.public-query-page) {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    padding: 0;
-    width: 100%;
-  }
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-col {
+  flex-direction: column;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-between {
+  justify-content: space-between;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.gap-2 {
+  gap: var(--space-2);
+}
+
+.gap-3 {
+  gap: var(--space-3);
+}
+
+.gap-4 {
+  gap: var(--space-4);
+}
+
+.gap-6 {
+  gap: var(--space-6);
+}
+
+/* ========== Scrollbar Styling ========== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-muted);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* ========== Animations ========== */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity var(--transition-normal);
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-enter-active,
+.slide-leave-active {
+  transition: transform var(--transition-normal), opacity var(--transition-normal);
+}
+
+.slide-enter-from,
+.slide-leave-to {
+  transform: translateX(-20px);
+  opacity: 0;
 }

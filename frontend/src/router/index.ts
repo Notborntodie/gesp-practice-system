@@ -9,6 +9,7 @@ import PlanSmartOJView from '../views/PlanSmartOJView.vue'
 import GESPEaxmView from '../views/GESPEaxmView.vue'
 import PlanExamView from '../views/PlanExamView.vue'
 import AdminView from '../views/AdminView.vue'
+import AdminLayout from '../views/AdminLayout.vue'
 import TeacherView from '../views/TeacherView.vue'
 import LevelExamsView from '../views/LevelExamsView.vue'
 import ExamSubmissionsView from '../views/ExamSubmissionsView.vue'
@@ -26,6 +27,17 @@ import StudentPlanProgressView from '../views/StudentPlanProgressView.vue'
 import AnimationView from '../views/AnimationView.vue'
 import TopWrongQuestionsView from '../views/TopWrongQuestionsView.vue'
 
+// Admin components
+import QuestionUpload from '../components/admin/QuestionUpload.vue'
+import KnowledgePointManagement from '../components/admin/KnowledgePointManagement.vue'
+import QuestionList from '../components/admin/QuestionList.vue'
+import ExamManagement from '../components/admin/ExamManagement.vue'
+import OJManagement from '../components/admin/OJManagement.vue'
+import LeaningPlanManagement from '../components/admin/LeaningPlanManagement.vue'
+import AdminTestManagementSection from '../components/admin/AdminTestManagementSection.vue'
+import UserManagement from '../components/admin/UserManagement.vue'
+import PlanEditorView from '../components/admin/PlanEditorView.vue'
+
 const routes = [
   { path: '/login', component: LoginView },
   { path: '/register', component: RegisterView },
@@ -42,22 +54,56 @@ const routes = [
   { path: '/plan/:planId/tasks/:taskId', component: TaskView },
   { path: '/select', redirect: '/level-exams/0' },
   { path: '/csp', component: CspLevelView },
-  { path: '/smartoj', component: SmartOJLevelView }, // 题目列表页
-  { path: '/smartoj/:problemId', component: SmartOJView }, // 单个题目做题页
-  { path: '/plan-smartoj/:problemId', component: PlanSmartOJView }, // 任务内编程题做题页
+  { path: '/smartoj', component: SmartOJLevelView },
+  { path: '/smartoj/:problemId', component: SmartOJView },
+  { path: '/plan-smartoj/:problemId', component: PlanSmartOJView },
   { path: '/select-level', redirect: '/level-exams/0' },
   { path: '/level-exams/:level', component: LevelExamsView },
   { path: '/practice/:examId', component: GESPEaxmView },
   { path: '/exam/:examId', component: GESPEaxmView },
-  { path: '/plan-exam/:examId', component: PlanExamView }, // 任务内考试页
+  { path: '/plan-exam/:examId', component: PlanExamView },
   { path: '/exam-submissions/:examId', component: ExamSubmissionsView },
   { path: '/teacher/:teacherId/submissions', component: StudentSubmissionsView },
   { path: '/teacher/:teacherId/oj-submissions/:problemId', component: TeacherOJSubmissionsView },
   { path: '/oj-submissions', component: OJSubmissionsView },
   { path: '/oj-submissions/:problemId', component: OJSubmissionsView },
   { path: '/profile', component: ProfileView },
-  { path: '/gesp5', redirect: '/practice/1' }, // 保持向后兼容
-  { path: '/admin', component: AdminView },
+  { path: '/gesp5', redirect: '/practice/1' },
+
+  // Legacy admin route (for backward compatibility, redirects to new layout)
+  { path: '/admin-old', component: AdminView },
+
+  // New Admin nested routes with layout
+  {
+    path: '/admin',
+    component: AdminLayout,
+    redirect: '/admin/questions',
+    children: [
+      { path: 'upload', name: 'AdminUpload', component: QuestionUpload },
+      { path: 'batch-upload', name: 'AdminBatchUpload', component: () => import('../components/admin/BatchUploadView.vue') },
+      { path: 'knowledge-points', name: 'AdminKnowledgePoints', component: KnowledgePointManagement },
+      { path: 'questions', name: 'AdminQuestions', component: QuestionList },
+      { path: 'question-editor/:id', name: 'AdminQuestionEditor', component: () => import('../components/admin/QuestionEditorView.vue') },
+      { path: 'exams', name: 'AdminExams', component: ExamManagement },
+      { path: 'exam-editor', name: 'AdminExamEditor', component: () => import('../components/admin/ExamEditorView.vue') },
+      { path: 'oj', name: 'AdminOJ', component: OJManagement },
+      { path: 'oj-create', name: 'AdminOJCreate', component: () => import('../components/admin/OJCreateView.vue') },
+      {
+        path: 'oj-editor/:id',
+        name: 'AdminOJEditor',
+        component: () => import('../components/admin/OJEditorView.vue'),
+        children: [
+          { path: 'samples', name: 'AdminOJSamples', component: () => import('../components/admin/OJSamplesView.vue') }
+        ]
+      },
+      { path: 'plans', name: 'AdminPlans', component: LeaningPlanManagement },
+      { path: 'tests', name: 'AdminTests', component: AdminTestManagementSection },
+      { path: 'test-editor', name: 'AdminTestEditor', component: () => import('../components/admin/TestEditorView.vue') },
+      { path: 'users', name: 'AdminUsers', component: UserManagement },
+      { path: 'plan-editor', name: 'AdminPlanEditor', component: PlanEditorView },
+    ]
+  },
+
   { path: '/teacher', component: TeacherView },
   { path: '/teacher/:teacherId/student/:studentId/plan-progress', component: StudentPlanProgressView },
   { path: '/feynman-summary', component: FeynmanSummaryView },
@@ -76,15 +122,16 @@ router.beforeEach((to, from, next) => {
   const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
   // 允许未登录访问的页面
   const publicPages = ['/login', '/register', '/home', '/top-wrong-questions']
-  // 动画页面路径（支持动态ID）也允许公开访问
-  // 易错题页面路径（支持动态级别）也允许公开访问；公开查分页无需登录
-  const isPublic = publicPages.includes(to.path) || to.path.startsWith('/animation/') || to.path.startsWith('/top-wrong-questions/') || to.path.startsWith('/public-tests/') || to.path.startsWith('/public-plans/')
+  // 动画页面路径、易错题页面、公开查分页也允许公开访问
+  const isPublic = publicPages.includes(to.path) ||
+    to.path.startsWith('/animation/') ||
+    to.path.startsWith('/top-wrong-questions/') ||
+    to.path.startsWith('/public-tests/') ||
+    to.path.startsWith('/public-plans/')
 
   if (!isLoggedIn && !isPublic) {
-    // 未登录且访问受保护页面，跳转到登录
     next('/login')
   } else if (isLoggedIn && (to.path === '/login' || to.path === '/register')) {
-    // 已登录访问登录/注册页，跳转到主页面
     next('/')
   } else {
     next()

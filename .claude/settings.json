@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://localhost:5137/)",
+      "Bash(npm run:*)",
+      "Bash(pm2 env:*)",
+      "Bash(curl -s http://127.0.0.1:8000/docs)",
+      "Bash(curl -s http://127.0.0.1:8000/)",
+      "Bash(curl -s -X GET http://127.0.0.1:8000/api/health)",
+      "Bash(curl -X POST http://127.0.0.1:8000/api/extract -F file=@test.pdf -F use_llm=true -F parallel_workers=3)",
+      "Bash(timeout 30 curl -X POST http://127.0.0.1:8000/api/stream-extract -F file=@test.pdf -F expected_questions=5)",
+      "Bash(./stop.sh)",
+      "Bash(./start.sh)",
+      "Bash(curl -X POST http://127.0.0.1:8000/api/extract -F file=@Al_server/test.pdf -F use_llm=true -F parallel_workers=2 --max-time 300)"
+    ]
+  }
+}

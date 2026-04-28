@@ -333,6 +333,96 @@ router.get('/tests/:id', async (req, res) => {
   }
 });
 
+// ==================== 管理端详情（无权限限制，仅管理员/教师可访问） ====================
+router.get('/admin/tests/:id', async (req, res) => {
+  let connection;
+  try {
+    const testId = parseInt(req.params.id, 10);
+    const user_id = getUserId(req);
+
+    if (!user_id) {
+      return res.status(401).json({ error: '请登录' });
+    }
+
+    connection = await pool.getConnection();
+
+    // 验证权限
+    const allowed = await isAdminOrTeacher(connection, user_id);
+    if (!allowed) {
+      connection.release();
+      return res.status(403).json({ error: '仅管理员或教师可访问' });
+    }
+
+    const [testRows] = await connection.execute('SELECT * FROM tests WHERE id = ?', [testId]);
+    if (testRows.length === 0) {
+      connection.release();
+      return res.status(404).json({ error: 'Test 不存在' });
+    }
+
+    const test = testRows[0];
+
+    // 获取关联的 exams
+    const [examRows] = await connection.execute(
+      `SELECT te.exam_id, te.exam_order, te.score_weight, e.name as exam_name, e.category, e.level, e.type,
+              (SELECT COUNT(*) FROM exam_questions eq WHERE eq.exam_id = te.exam_id) as total_questions
+       FROM test_exams te
+       LEFT JOIN exams e ON te.exam_id = e.id
+       WHERE te.test_id = ?
+       ORDER BY te.exam_order`,
+      [testId]
+    );
+
+    // 获取关联的 oj_problems
+    const [ojRows] = await connection.execute(
+      `SELECT tojp.problem_id, tojp.problem_order, tojp.score_weight, p.title, p.category, p.level
+       FROM test_oj_problems tojp
+       LEFT JOIN oj_problems p ON tojp.problem_id = p.id
+       WHERE tojp.test_id = ?
+       ORDER BY tojp.problem_order`,
+      [testId]
+    );
+
+    connection.release();
+
+    res.json({
+      success: true,
+      data: {
+        id: test.id,
+        name: test.name,
+        description: test.description,
+        time_limit_minutes: test.time_limit_minutes,
+        start_time: test.start_time,
+        end_time: test.end_time,
+        total_score: test.total_score,
+        is_public: !!test.is_public,
+        created_by: test.created_by,
+        exams: examRows.map(e => ({
+          exam_id: e.exam_id,
+          exam_order: e.exam_order,
+          score_weight: e.score_weight,
+          exam_name: e.exam_name,
+          category: e.category,
+          level: e.level,
+          type: e.type,
+          total_questions: e.total_questions
+        })),
+        oj_problems: ojRows.map(o => ({
+          problem_id: o.problem_id,
+          problem_order: o.problem_order,
+          score_weight: o.score_weight,
+          title: o.title,
+          category: o.category,
+          level: o.level
+        }))
+      }
+    });
+  } catch (e) {
+    logger.error('GET /admin/tests/:id', { error: e.message });
+    if (connection) connection.release();
+    res.status(500).json({ error: '服务器错误' });
+  }
+});
+
 // ==================== 创建 ====================
 router.post('/tests', async (req, res) => {
   let connection;
