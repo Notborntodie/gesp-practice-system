@@ -298,6 +298,14 @@
               </div>
             </div>
 
+            <div v-if="submitResult.growthPetReward?.awarded" class="growth-reward-banner">
+              <Icon name="sparkles" :size="20" />
+              <div>
+                <strong>成长精灵 +{{ submitResult.growthPetReward.points }} 积分</strong>
+                <span>首次通过计划内编程题获得成长积分。</span>
+              </div>
+            </div>
+
             <!-- 测试用例详情 -->
             <div v-if="submitResult.results && submitResult.results.length > 0" class="test-cases-section">
               <h4 class="section-subtitle">测试用例详情</h4>
@@ -378,6 +386,9 @@
             <div class="exit-confirm-icon success-icon"><Icon name="check-circle" :size="48" /></div>
             <p class="exit-confirm-message">
               恭喜您成功通过本题！<br>
+              <span v-if="submitResult?.growthPetReward?.awarded" class="growth-reward-inline">
+                成长精灵 +{{ submitResult.growthPetReward.points }} 积分<br>
+              </span>
               <span class="exit-confirm-warning">是否返回上一页？</span>
             </p>
           </div>
@@ -1375,6 +1386,10 @@ const confirmAndSubmit = async () => {
           results: submission.results || [],
           runtime: submission.judge_duration || 0,
           memory: 0,
+          growthPetReward: submission.growth_pet_reward || null,
+        }
+        if (submission.growth_pet_reward?.awarded) {
+          window.dispatchEvent(new CustomEvent('growth-pet-refresh'))
         }
         
         // 更新题目提交状态
@@ -3721,6 +3736,34 @@ const confirmAndSubmit = async () => {
   .stat-box .stat-value {
     color: #0c4a6e;
     font-size: 24px;
+    font-weight: 700;
+  }
+
+  .growth-reward-banner {
+    margin-top: 16px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid #bbf7d0;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #ecfdf5 0%, #eff6ff 100%);
+    color: #14532d;
+  }
+
+  .growth-reward-banner strong,
+  .growth-reward-banner span {
+    display: block;
+  }
+
+  .growth-reward-banner span {
+    margin-top: 3px;
+    color: #64748b;
+    font-size: 13px;
+  }
+
+  .growth-reward-inline {
+    color: #16a34a;
     font-weight: 700;
   }
 
@@ -6222,4 +6265,3 @@ const confirmAndSubmit = async () => {
     }
   }
   </style>
-  

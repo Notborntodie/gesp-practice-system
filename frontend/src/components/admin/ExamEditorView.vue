@@ -135,11 +135,11 @@
                 placeholder="级别"
                 size="sm"
               />
-              <input
+              <AppMonthSelect
                 v-model="poolDateFilter"
-                type="month"
-                class="month-input-sm"
+                :available-months="poolMonthValues"
                 placeholder="日期"
+                size="sm"
               />
               <AppSelect
                 v-model="poolDifficultyFilter"
@@ -248,6 +248,7 @@
 <script setup lang="ts">
 import { BASE_URL } from '@/config/api'
 import { ref, computed, watch, onMounted, inject } from 'vue'
+import { useRouter } from 'vue-router'
 import axios from 'axios'
 import type { Ref } from 'vue'
 
@@ -255,6 +256,7 @@ import type { Ref } from 'vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
+import AppMonthSelect from '@/components/ui/AppMonthSelect.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
 import AppTag from '@/components/ui/AppTag.vue'
 import AppFormField from '@/components/ui/AppFormField.vue'
@@ -269,6 +271,8 @@ import { useQuestionTypeStore } from '@/stores/questionTypeStore'
 const questionTypeStore = useQuestionTypeStore()
 
 // Inject from AdminLayout
+const router = useRouter()
+
 const examEditorExamId = inject<Ref<number | undefined>>('examEditorExamId')
 const examEditorQuestionIds = inject<Ref<number[] | undefined>>('examEditorQuestionIds')
 
@@ -308,6 +312,8 @@ const poolDateFilter = ref('')
 const poolKnowledgePointFilter = ref('')
 const poolKnowledgePoints = ref<any[]>([])
 const poolSelectedIds = ref<number[]>([])
+
+const poolMonthValues = computed(() => availableQuestions.value.map((question: any) => question.question_date))
 
 // Options
 const categoryOptions = computed(() => {
@@ -395,8 +401,17 @@ const filteredPool = computed(() => {
   if (poolKnowledgePointFilter.value) {
     const kpId = parseInt(poolKnowledgePointFilter.value)
     list = list.filter(it => {
-      const kps = it.knowledge_points || []
-      return kps.some((kp: any) => kp.id === kpId || kp.knowledge_point_id === kpId)
+      const kps = it.knowledge_points
+      if (!kps) return false
+      // 后端 /available-questions 返回的 knowledge_points 是 GROUP_CONCAT 的逗号分隔字符串
+      // 后端 /questions 返回的 knowledge_points 是数组对象，需兼容两种格式
+      if (typeof kps === 'string') {
+        return false // 字符串格式无法按 ID 匹配，跳过
+      }
+      if (Array.isArray(kps)) {
+        return kps.some((kp: any) => kp.id === kpId || kp.knowledge_point_id === kpId)
+      }
+      return false
     })
   }
 
@@ -461,7 +476,7 @@ function validateForm(): boolean {
 }
 
 function goBack() {
-  window.location.href = '/admin/exams'
+  router.push('/admin/exams')
 }
 
 // Load Data
@@ -943,16 +958,6 @@ onMounted(async () => {
 
 .filter-row > * {
   flex: 1;
-  min-width: 120px;
-}
-
-.month-input-sm {
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--font-size-sm);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-foreground);
   min-width: 120px;
 }
 

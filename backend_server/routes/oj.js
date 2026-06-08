@@ -10,6 +10,7 @@ const { pool, getValidCategories } = require('../config/database');
 const { cacheUtils } = require('../config/cache');
 const { getQueueStatus } = require('../services/judgeQueue');
 const { judgeCode } = require('../services/isolateJudge');  // 使用 isolate 轻量级判题
+const { awardGrowthPetPoints } = require('../services/growthPetService');
 
 const execFileAsync = promisify(execFile);
 
@@ -145,6 +146,7 @@ async function submitOjInternal(connection, user_id, problem_id, code, language,
   
   const submissionId = insertResult.insertId;
   const isAccepted = verdict === 'Accepted';
+  let growthPetReward = null;
   
   // 更新题目统计
   if (status === 'completed') {
@@ -164,6 +166,7 @@ async function submitOjInternal(connection, user_id, problem_id, code, language,
       'SELECT * FROM user_oj_progress WHERE user_id = ? AND problem_id = ? AND task_id = ?',
       [user_id, problem_id, task_id]
     );
+    const wasCompleted = existingProgress.length > 0 && Boolean(existingProgress[0].is_completed);
     
     if (existingProgress.length > 0) {
       // 更新现有进度
@@ -189,6 +192,25 @@ async function submitOjInternal(connection, user_id, problem_id, code, language,
         VALUES (?, ?, ?, ?, ?, 1, ?)
       `, [user_id, problem_id, task_id, isAccepted ? 1 : 0, verdict, isAccepted ? new Date() : null]);
     }
+
+    if (isAccepted && !wasCompleted) {
+      try {
+        growthPetReward = await awardGrowthPetPoints(connection, {
+          user_id,
+          task_id,
+          source_type: 'oj',
+          source_id: problem_id
+        });
+      } catch (error) {
+        logger.error('成长精灵OJ奖励发放失败', {
+          error: error.message,
+          user_id,
+          task_id,
+          problem_id
+        });
+        growthPetReward = { awarded: false, points: 0, reason: 'reward_error' };
+      }
+    }
   }
   
   return {
@@ -199,7 +221,8 @@ async function submitOjInternal(connection, user_id, problem_id, code, language,
     passed_tests: passedTests,
     results: serializedResults ? JSON.parse(serializedResults) : [],
     duration: judgeDuration,
-    error: errorMessage
+    error: errorMessage,
+    growth_pet_reward: growthPetReward
   };
 }
 
@@ -1916,4 +1939,3 @@ router.get('/oj/queue/status', async (req, res) => {
 // 导出可复用函数
 module.exports = router;
 module.exports.submitOjInternal = submitOjInternal;
-

@@ -1,9 +1,17 @@
 <template>
   <BaseTeacherSection title="计划完成">
     <template #filters>
-      <div class="level-filter">
-        <label>级别筛选：</label>
-        <select v-model="selectedLevel" @change="fetchPlans" class="level-select">
+      <div class="progress-filters">
+        <div class="level-filter">
+          <label>聚合方式：</label>
+          <select v-model="aggregationMode" @change="handleAggregationModeChange" class="level-select">
+            <option value="plan">按计划</option>
+            <option value="student">按学生</option>
+          </select>
+        </div>
+        <div class="level-filter">
+          <label>级别筛选：</label>
+          <select v-model="selectedLevel" @change="handleFilterChange" class="level-select">
           <option value="">全部级别</option>
           <option value="1">GESP 1级</option>
           <option value="2">GESP 2级</option>
@@ -11,7 +19,8 @@
           <option value="4">GESP 4级</option>
           <option value="5">GESP 5级</option>
           <option value="6">GESP 6级</option>
-        </select>
+          </select>
+        </div>
       </div>
     </template>
 
@@ -19,6 +28,172 @@
       <div v-if="loading" class="loading-state">
         <div class="loading-spinner"></div>
         <span>加载中...</span>
+      </div>
+
+      <!-- 按学生聚合 -->
+      <div v-else-if="aggregationMode === 'student'" class="student-aggregate-container">
+        <div v-if="selectedStudentPlanDetail || studentPlanDetailLoading">
+          <div class="plan-info-card">
+            <div class="plan-header">
+              <h3>
+                {{ selectedStudentPlan?.student?.real_name || selectedStudentPlan?.student?.username }}
+                -
+                {{ selectedStudentPlan?.plan?.name }}
+              </h3>
+              <button @click="backToStudentAggregate" class="btn-back">← 返回学生列表</button>
+            </div>
+            <div class="plan-meta" v-if="selectedStudentPlan?.plan">
+              <span class="meta-item">级别: GESP {{ selectedStudentPlan.plan.level }}级</span>
+              <span class="meta-item">开始时间: {{ formatDate(selectedStudentPlan.plan.start_time) }}</span>
+              <span class="meta-item">结束时间: {{ formatDate(selectedStudentPlan.plan.end_time) }}</span>
+            </div>
+          </div>
+
+          <div v-if="studentPlanDetailLoading" class="loading-state">
+            <div class="loading-spinner"></div>
+            <span>加载学生计划明细...</span>
+          </div>
+
+          <div v-else-if="selectedStudentPlanDetail" class="student-plan-detail">
+            <div class="progress-overview">
+              <h4>计划完成概览</h4>
+              <div class="overview-cards">
+                <div class="overview-card">
+                  <div class="overview-label">任务完成</div>
+                  <div class="overview-value">
+                    {{ selectedStudentPlanDetail.plan_progress?.completed_tasks || 0 }}/{{ selectedStudentPlanDetail.plan_progress?.total_tasks || 0 }}
+                  </div>
+                </div>
+                <div class="overview-card">
+                  <div class="overview-label">完成率</div>
+                  <div class="overview-value">{{ selectedStudentPlanDetail.plan_progress?.progress_rate || 0 }}%</div>
+                </div>
+                <div class="overview-card">
+                  <div class="overview-label">状态</div>
+                  <div class="overview-value">
+                    {{ isCompleted(selectedStudentPlanDetail.plan_progress?.is_completed) ? '已完成' : '进行中' }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="selectedStudentPlanDetail.tasks?.length" class="student-task-detail-list">
+              <div v-for="task in selectedStudentPlanDetail.tasks" :key="task.id" class="student-task-card">
+                <div class="task-header">
+                  <div>
+                    <div class="task-name">任务 {{ task.task_order ?? '-' }}：{{ task.name }}</div>
+                    <div v-if="task.description" class="task-description">{{ task.description }}</div>
+                  </div>
+                  <span class="task-status-badge" :class="isCompleted(task.task_progress?.is_completed) ? 'completed' : 'in-progress'">
+                    {{ isCompleted(task.task_progress?.is_completed) ? '已完成' : '进行中' }}
+                  </span>
+                </div>
+
+                <div class="task-progress-summary">
+                  <span>客观题 {{ task.exam_progress?.completed || 0 }}/{{ task.exam_progress?.total || 0 }}</span>
+                  <span>编程题 {{ task.oj_progress?.completed || 0 }}/{{ task.oj_progress?.total || 0 }}</span>
+                </div>
+
+                <div v-if="task.exam_progress?.exams?.length" class="exercise-subsection">
+                  <h5>客观题分数</h5>
+                  <div class="exercise-list-compact">
+                    <div v-for="exam in task.exam_progress.exams" :key="`student-exam-${task.id}-${exam.id}`" class="exercise-compact-row">
+                      <div>
+                        <div class="exercise-compact-name">{{ exam.name }}</div>
+                        <div class="exercise-compact-meta">尝试 {{ exam.attempt_count || 0 }} 次</div>
+                      </div>
+                      <div class="exercise-compact-score">
+                        <span>{{ formatScore(exam.best_score) }}分</span>
+                        <span class="score-status-badge" :class="{ completed: isCompleted(exam.is_completed) }">
+                          {{ isCompleted(exam.is_completed) ? '完成' : '未完成' }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="task.oj_progress?.problems?.length" class="exercise-subsection">
+                  <h5>编程题完成情况</h5>
+                  <div class="exercise-list-compact">
+                    <div v-for="problem in task.oj_progress.problems" :key="`student-oj-${task.id}-${problem.id}`" class="exercise-compact-row">
+                      <div>
+                        <div class="exercise-compact-name">{{ problem.title }}</div>
+                        <div class="exercise-compact-meta">尝试 {{ problem.attempt_count || 0 }} 次</div>
+                      </div>
+                      <div class="exercise-compact-score">
+                        <span v-if="!isCompleted(problem.is_completed)">{{ formatScore(problem.score ?? problem.best_pass_rate) }}分</span>
+                        <span class="score-status-badge" :class="{ completed: isCompleted(problem.is_completed) }">
+                          {{ isCompleted(problem.is_completed) ? '完成' : '未完成' }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="!task.exam_progress?.exams?.length && !task.oj_progress?.problems?.length" class="empty-task-exercises">
+                  该任务暂无题目
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="empty-state">
+              <p>该学生在此计划下暂无任务明细</p>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="studentPlanLoading" class="loading-state">
+          <div class="loading-spinner"></div>
+          <span>加载学生计划完成概览...</span>
+        </div>
+
+        <div v-else-if="studentPlanRows.length > 0" class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>班级</th>
+                <th>学生姓名</th>
+                <th>用户名</th>
+                <th>所在计划</th>
+                <th>计划完成</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="student in studentPlanRows" :key="student.student_id" class="table-row">
+                <td>{{ student.class_no || '—' }}</td>
+                <td class="student-name-cell">
+                  <div class="student-name-text">{{ student.real_name || student.username }}</div>
+                </td>
+                <td><span class="username-text">{{ student.username }}</span></td>
+                <td>
+                  <div v-if="student.plans?.length" class="student-plan-list">
+                    <button
+                      v-for="plan in student.plans"
+                      :key="plan.id"
+                      class="student-plan-chip"
+                      @click="viewStudentPlanDetail(student, plan)"
+                    >
+                      <span class="student-plan-chip-name">{{ plan.name }}</span>
+                      <span class="student-plan-chip-progress">
+                        {{ plan.plan_progress?.completed_tasks || 0 }}/{{ plan.plan_progress?.total_tasks || 0 }}
+                      </span>
+                    </button>
+                  </div>
+                  <span v-else class="empty-plan-text">暂无计划</span>
+                </td>
+                <td>
+                  <span class="status-badge" :class="student.completed_plan_count === student.plan_count && student.plan_count > 0 ? 'completed' : 'in-progress'">
+                    {{ student.completed_plan_count || 0 }}/{{ student.plan_count || 0 }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-else class="empty-state">
+          <p>当前筛选条件下暂无学生计划进度</p>
+        </div>
       </div>
 
       <!-- 任务完成页面 -->
@@ -446,6 +621,14 @@ const plans = ref<any[]>([])
 const selectedPlan = ref<any>(null)
 const selectedLevel = ref('')
 const loading = ref(false)
+const aggregationMode = ref<'plan' | 'student'>('plan')
+
+// 按学生聚合
+const studentPlanRows = ref<any[]>([])
+const studentPlanLoading = ref(false)
+const selectedStudentPlan = ref<any>(null)
+const selectedStudentPlanDetail = ref<any>(null)
+const studentPlanDetailLoading = ref(false)
 
 // 任务列表
 const tasks = ref<any[]>([])
@@ -494,6 +677,92 @@ const fetchPlans = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const fetchStudentPlanProgress = async () => {
+  if (!userInfo.value) return
+
+  studentPlanLoading.value = true
+  try {
+    const params: any = { is_active: '1' }
+    if (selectedLevel.value) {
+      params.level = selectedLevel.value
+    }
+
+    const response = await axios.get(
+      `${BASE_URL}/learning-plans/teacher/${userInfo.value.id}/student-plans-progress`,
+      { params }
+    )
+
+    if (response.data.success) {
+      studentPlanRows.value = response.data.data?.students || []
+    } else {
+      alert('获取学生计划完成概览失败: ' + (response.data.message || '未知错误'))
+      studentPlanRows.value = []
+    }
+  } catch (error: any) {
+    console.error('获取学生计划完成概览失败:', error)
+    alert('获取学生计划完成概览失败: ' + (error.response?.data?.message || error.message))
+    studentPlanRows.value = []
+  } finally {
+    studentPlanLoading.value = false
+  }
+}
+
+const handleFilterChange = () => {
+  selectedPlan.value = null
+  selectedTask.value = null
+  selectedStudentPlan.value = null
+  selectedStudentPlanDetail.value = null
+  if (aggregationMode.value === 'student') {
+    fetchStudentPlanProgress()
+  } else {
+    fetchPlans()
+  }
+}
+
+const handleAggregationModeChange = () => {
+  selectedPlan.value = null
+  selectedTask.value = null
+  selectedStudentPlan.value = null
+  selectedStudentPlanDetail.value = null
+  if (aggregationMode.value === 'student') {
+    fetchStudentPlanProgress()
+  } else {
+    fetchPlans()
+  }
+}
+
+const viewStudentPlanDetail = async (student: any, plan: any) => {
+  if (!userInfo.value) return
+
+  selectedStudentPlan.value = { student, plan }
+  selectedStudentPlanDetail.value = null
+  studentPlanDetailLoading.value = true
+
+  try {
+    const response = await axios.get(
+      `${BASE_URL}/learning-plans/${plan.id}/students/${student.student_id}/progress`,
+      { params: { teacher_id: userInfo.value.id } }
+    )
+
+    if (response.data.success) {
+      selectedStudentPlanDetail.value = response.data.data
+    } else {
+      alert('获取学生计划明细失败: ' + (response.data.message || '未知错误'))
+    }
+  } catch (error: any) {
+    console.error('获取学生计划明细失败:', error)
+    alert('获取学生计划明细失败: ' + (error.response?.data?.message || error.message))
+  } finally {
+    studentPlanDetailLoading.value = false
+  }
+}
+
+const backToStudentAggregate = () => {
+  selectedStudentPlan.value = null
+  selectedStudentPlanDetail.value = null
+  studentPlanDetailLoading.value = false
 }
 
 // 查看计划完成情况 - 进入任务列表
@@ -1155,6 +1424,12 @@ const formatDate = (dateString: string) => {
   return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
+const formatScore = (score: any): string => {
+  const n = Number(score)
+  if (!Number.isFinite(n)) return '0'
+  return Number.isInteger(n) ? String(n) : n.toFixed(1)
+}
+
 // 格式化进度显示（显示为"完成 X/Y"格式）
 const formatProgress = (progress: any): string => {
   if (!progress) return '完成 0/0'
@@ -1355,6 +1630,13 @@ watch(() => route.query.fromSection, (fromSection) => {
 </script>
 
 <style scoped>
+.progress-filters {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .level-filter {
   display: flex;
   align-items: center;
@@ -1679,6 +1961,152 @@ watch(() => route.query.fromSection, (fromSection) => {
 
 .students-progress-container {
   margin-top: 24px;
+}
+
+.student-aggregate-container,
+.student-plan-detail,
+.student-task-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.student-plan-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 760px;
+}
+
+.student-plan-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 360px;
+  padding: 7px 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.student-plan-chip:hover {
+  background: #dbeafe;
+  border-color: #60a5fa;
+  transform: translateY(-1px);
+}
+
+.student-plan-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.student-plan-chip-progress {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1e40af;
+  font-size: 12px;
+}
+
+.empty-plan-text {
+  color: #94a3b8;
+}
+
+.student-task-card {
+  padding: 18px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.task-progress-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.task-progress-summary span {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.exercise-subsection {
+  margin-top: 14px;
+}
+
+.exercise-subsection h5 {
+  margin: 0 0 10px 0;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.exercise-list-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.exercise-compact-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.exercise-compact-name {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.exercise-compact-meta {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.exercise-compact-score {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #0f172a;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.score-status-badge {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.score-status-badge.completed {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.empty-task-exercises {
+  margin-top: 12px;
+  color: #94a3b8;
+  font-size: 14px;
 }
 
 /* 导出操作区域 */
@@ -2436,4 +2864,3 @@ watch(() => route.query.fromSection, (fromSection) => {
   color: white;
 }
 </style>
-

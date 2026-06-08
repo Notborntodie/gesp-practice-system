@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { watch } from 'vue'
-import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { RouterView, useRoute } from 'vue-router'
 import NavBar from './components/NavBar.vue'
+import GlobalGrowthPetFloating from './components/plan/GlobalGrowthPetFloating.vue'
 
 const route = useRoute()
 
@@ -24,6 +25,7 @@ watch(
   <main class="main-content">
     <RouterView />
   </main>
+  <GlobalGrowthPetFloating />
 </template>
 
 <style scoped>

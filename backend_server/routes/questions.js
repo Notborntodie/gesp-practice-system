@@ -45,30 +45,46 @@ const upload = multer({
 router.get('/questions', cacheMiddleware(300, 'questions'), async (req, res) => {
   try {
     const connection = await pool.getConnection();
-    
-    // 获取题目基本信息
+
+    const listMode = req.query.list === '1' || req.query.mode === 'list';
+    const questionFields = listMode
+      ? 'id, public_id, category, level, question_date, created_at, updated_at, exam_count, exam_summary'
+      : '*';
+
+    // 获取题目基本信息（列表模式只返回管理表格需要的轻量字段）
     const [questionRows] = await connection.execute(
-      'SELECT * FROM questions ORDER BY id'
+      `SELECT ${questionFields} FROM questions ORDER BY id`
     );
-    
-    // 为每个题目获取关联的知识点
-    const questionsWithKnowledge = [];
-    
-    for (const question of questionRows) {
-      const [knowledgeRows] = await connection.execute(`
-        SELECT kp.* FROM knowledge_points kp
-        JOIN question_knowledge_points qkp ON kp.id = qkp.knowledge_point_id
-        WHERE qkp.question_id = ?
-      `, [question.id]);
-      
-      questionsWithKnowledge.push({
-        ...question,
-        knowledge_points: knowledgeRows
-      });
+
+    if (questionRows.length === 0) {
+      connection.release();
+      return res.json([]);
     }
-    
+
+    // 批量获取所有知识点关联（替代逐题 N+1 查询）
+    const questionIds = questionRows.map(q => q.id);
+    const [kpRows] = await connection.execute(`
+      SELECT qkp.question_id, kp.id, kp.name, kp.category, kp.level
+      FROM question_knowledge_points qkp
+      JOIN knowledge_points kp ON kp.id = qkp.knowledge_point_id
+      WHERE qkp.question_id IN (${questionIds.map(() => '?').join(',')})
+    `, questionIds);
+
+    // 按 question_id 分组
+    const kpMap = {};
+    for (const row of kpRows) {
+      if (!kpMap[row.question_id]) kpMap[row.question_id] = [];
+      kpMap[row.question_id].push({ id: row.id, name: row.name, category: row.category, level: row.level });
+    }
+
+    // 组装结果
+    const result = questionRows.map(q => ({
+      ...q,
+      knowledge_points: kpMap[q.id] || []
+    }));
+
     connection.release();
-    res.json(questionsWithKnowledge);
+    res.json(result);
   } catch (err) {
     logger.error('获取题目列表错误', { error: err.message });
     res.status(500).json({ error: '数据库查询失败' });

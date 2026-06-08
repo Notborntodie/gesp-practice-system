@@ -30,6 +30,8 @@ DEPLOY_PATH="${DEPLOY_PATH:-/var/www/gesp-frontend}"
 NGINX_CONFIG_PATH="${NGINX_CONFIG_PATH:-/etc/nginx/conf.d/gesp-frontend.conf}"
 # 动画上传目录（独立于部署目录，避免 rm -rf 清空时删除教师上传的动画）
 ANIMATIONS_UPLOAD_PATH="${ANIMATIONS_UPLOAD_PATH:-/var/www/gesp-uploads/html}"
+FORCE_LOCAL_DEPLOY="${FORCE_LOCAL_DEPLOY:-false}"
+FORCE_REBUILD="${FORCE_REBUILD:-false}"
 
 # HTTPS/SSL配置（可选，如果配置了SSL证书路径，则启用HTTPS）
 DOMAIN_NAME="${DOMAIN_NAME:-}"
@@ -45,29 +47,44 @@ OJ_API_CONFIGS="${OJ_API_CONFIGS:-}"
 # 检测是否为本地部署模式
 detect_local_deploy() {
     LOCAL_DEPLOY=false
-    
-    # 获取当前服务器的IP地址（内网IP）
-    local current_internal_ip=""
-    if command -v hostname >/dev/null 2>&1; then
-        current_internal_ip=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "")
+
+    if [ "${FORCE_LOCAL_DEPLOY}" = "true" ]; then
+        LOCAL_DEPLOY=true
+        log_info "使用本地部署模式（FORCE_LOCAL_DEPLOY=true）"
+        return
     fi
     
-    # 获取当前服务器的公网IP
+    # 获取当前服务器的IP地址（可能包含多个内网IP）
+    local current_internal_ips=""
+    if command -v hostname >/dev/null 2>&1; then
+        current_internal_ips=$(hostname -I 2>/dev/null || echo "")
+    fi
+    
+    # 获取当前服务器的公网IP。服务器上直连查询，避免代理环境影响判断。
     local current_public_ip=""
     if command -v curl >/dev/null 2>&1; then
-        current_public_ip=$(curl -s --connect-timeout 2 ifconfig.me 2>/dev/null || curl -s --connect-timeout 2 ipinfo.io/ip 2>/dev/null || echo "")
+        current_public_ip=$(curl -s --noproxy '*' --connect-timeout 2 https://ifconfig.me 2>/dev/null || curl -s --noproxy '*' --connect-timeout 2 https://ipinfo.io/ip 2>/dev/null || echo "")
+    fi
+
+    # 阿里云等云服务器的元数据服务可作为公网IP判断兜底。
+    local current_metadata_ip=""
+    if command -v curl >/dev/null 2>&1; then
+        current_metadata_ip=$(curl -s --noproxy '*' --connect-timeout 1 http://100.100.100.200/latest/meta-data/eipv4 2>/dev/null || curl -s --noproxy '*' --connect-timeout 1 http://100.100.100.200/latest/meta-data/public-ipv4 2>/dev/null || echo "")
     fi
     
     # 检查是否为本地部署
     if [ "${SERVER_IP}" = "localhost" ] || [ "${SERVER_IP}" = "127.0.0.1" ]; then
         LOCAL_DEPLOY=true
         log_info "检测到本地部署模式（localhost）"
-    elif [ -n "${current_internal_ip}" ] && [ "${SERVER_IP}" = "${current_internal_ip}" ]; then
+    elif [ -n "${current_internal_ips}" ] && echo " ${current_internal_ips} " | grep -q " ${SERVER_IP} "; then
         LOCAL_DEPLOY=true
-        log_info "检测到本地部署模式（内网IP匹配: ${current_internal_ip}）"
+        log_info "检测到本地部署模式（内网IP匹配: ${SERVER_IP}）"
     elif [ -n "${current_public_ip}" ] && [ "${SERVER_IP}" = "${current_public_ip}" ]; then
         LOCAL_DEPLOY=true
         log_info "检测到本地部署模式（公网IP匹配: ${current_public_ip}）"
+    elif [ -n "${current_metadata_ip}" ] && [ "${SERVER_IP}" = "${current_metadata_ip}" ]; then
+        LOCAL_DEPLOY=true
+        log_info "检测到本地部署模式（云元数据公网IP匹配: ${current_metadata_ip}）"
     elif [ "${SERVER_IP}" = "$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo '')" ]; then
         LOCAL_DEPLOY=true
         log_info "检测到本地部署模式（主机名匹配）"
@@ -178,6 +195,12 @@ build_frontend() {
 # 检查构建文件是否存在
 check_build_files() {
     log_info "检查构建文件..."
+
+    if [ "${FORCE_REBUILD}" = "true" ]; then
+        log_info "FORCE_REBUILD=true，重新构建前端..."
+        build_frontend
+        return
+    fi
     
     if [ ! -d "dist" ]; then
         log_warning "dist目录不存在，将自动构建..."
@@ -702,6 +725,8 @@ show_config() {
     echo "  - 服务器IP: ${SERVER_IP}"
     echo "  - 服务器用户: ${SERVER_USER}"
     echo "  - 部署路径: ${DEPLOY_PATH}"
+    echo "  - 强制本地部署: ${FORCE_LOCAL_DEPLOY}"
+    echo "  - 强制重新构建: ${FORCE_REBUILD}"
     echo "  - 域名: ${DOMAIN_NAME}"
     echo "  - API地址: ${API_BASE_URL}"
     echo "  - AI API地址: ${AI_API_BASE_URL}"
@@ -749,8 +774,8 @@ main() {
     
     show_config
     
-    # 如果指定了 --build 参数或 dist 目录不存在，则先构建
-    if [ "$1" == "--build" ] || [ ! -d "dist" ]; then
+    # 如果指定了 --build 参数、强制重建或 dist 目录不存在，则先构建
+    if [ "$1" == "--build" ] || [ "${FORCE_REBUILD}" = "true" ] || [ ! -d "dist" ]; then
         build_frontend
     else
         check_build_files

@@ -47,6 +47,12 @@ function getUserId(req) {
   return Number.isFinite(n) ? n : null;
 }
 
+function getOptionalInt(value) {
+  if (value == null || value === '') return null;
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
 async function isAdminOrSuperAdmin(connection, user_id) {
   if (!user_id) return false;
   const [rows] = await connection.execute(
@@ -57,6 +63,60 @@ async function isAdminOrSuperAdmin(connection, user_id) {
   );
   return rows.length > 0;
 }
+
+// 计划分配页轻量查询：返回指定计划已分配的学生ID
+router.get('/learning-plans/:planId/student-ids', async (req, res) => {
+  const planId = getOptionalInt(req.params.planId);
+  const teacherId = getOptionalInt(req.query.teacher_id);
+
+  if (!planId) {
+    return res.status(400).json({ success: false, error: '无效的计划ID' });
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    const [planRows] = await connection.execute(
+      'SELECT id FROM learning_plans WHERE id = ?',
+      [planId]
+    );
+
+    if (planRows.length === 0) {
+      return res.status(404).json({ success: false, error: '学习计划不存在' });
+    }
+
+    let sql = `
+      SELECT DISTINCT ulp.user_id
+      FROM user_learning_plans ulp
+      WHERE ulp.plan_id = ?
+    `;
+    const params = [planId];
+
+    if (teacherId) {
+      sql += `
+        AND EXISTS (
+          SELECT 1
+          FROM teacher_students ts
+          WHERE ts.teacher_id = ? AND ts.student_id = ulp.user_id
+        )
+      `;
+      params.push(teacherId);
+    }
+
+    sql += ' ORDER BY ulp.user_id ASC';
+
+    const [rows] = await connection.execute(sql, params);
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.json({
+      success: true,
+      data: rows.map(row => row.user_id)
+    });
+  } catch (error) {
+    logger.error('获取计划已分配学生ID失败:', error);
+    res.status(500).json({ success: false, error: '获取计划已分配学生ID失败' });
+  } finally {
+    connection.release();
+  }
+});
 
 // ==================== 1. 获取我的学习计划列表 ====================
 router.get('/learning-plans/my-plans', async (req, res) => {
@@ -201,6 +261,151 @@ router.get('/learning-plans/all', async (req, res) => {
       success: false,
       error: '获取所有学习计划列表失败',
       message: error.message 
+    });
+  }
+});
+
+// ==================== 2.1 教师按学生聚合查看计划完成概览 ====================
+router.get('/learning-plans/teacher/:teacherId/student-plans-progress', async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    const { level, is_active = '1' } = req.query;
+
+    const connection = await pool.getConnection();
+
+    try {
+      const [students] = await connection.execute(`
+        SELECT DISTINCT
+          u.id,
+          u.username,
+          u.real_name,
+          ts.class_no
+        FROM users u
+        JOIN teacher_students ts ON u.id = ts.student_id
+        WHERE ts.teacher_id = ?
+        ORDER BY COALESCE(ts.class_no, ''), COALESCE(u.real_name, u.username), u.username
+      `, [teacherId]);
+
+      if (students.length === 0) {
+        connection.release();
+        return res.json({
+          success: true,
+          data: {
+            students: []
+          }
+        });
+      }
+
+      let planQuery = `
+        SELECT
+          u.id as student_id,
+          lp.id as plan_id,
+          lp.name,
+          lp.description,
+          lp.level,
+          lp.start_time,
+          lp.end_time,
+          lp.is_active,
+          ulp.status,
+          ulp.joined_at,
+          COALESCE(task_counts.total_tasks, 0) as total_tasks,
+          COALESCE(upp.completed_tasks, completed_task_counts.completed_tasks, 0) as completed_tasks,
+          COALESCE(upp.is_completed, 0) as is_completed,
+          upp.completed_at
+        FROM users u
+        JOIN teacher_students ts ON u.id = ts.student_id
+        JOIN user_learning_plans ulp ON ulp.user_id = u.id
+        JOIN learning_plans lp ON lp.id = ulp.plan_id
+        LEFT JOIN user_plan_progress upp ON upp.user_id = u.id AND upp.plan_id = lp.id
+        LEFT JOIN (
+          SELECT plan_id, COUNT(*) as total_tasks
+          FROM learning_tasks
+          GROUP BY plan_id
+        ) task_counts ON task_counts.plan_id = lp.id
+        LEFT JOIN (
+          SELECT lt.plan_id, utp.user_id, COUNT(*) as completed_tasks
+          FROM user_task_progress utp
+          JOIN learning_tasks lt ON lt.id = utp.task_id
+          WHERE utp.is_completed = 1
+          GROUP BY lt.plan_id, utp.user_id
+        ) completed_task_counts ON completed_task_counts.plan_id = lp.id AND completed_task_counts.user_id = u.id
+        WHERE ts.teacher_id = ?
+      `;
+      const params = [teacherId];
+
+      if (level) {
+        planQuery += ' AND lp.level = ?';
+        params.push(level);
+      }
+
+      if (is_active !== undefined && is_active !== '') {
+        planQuery += ' AND lp.is_active = ?';
+        params.push(is_active);
+      }
+
+      planQuery += ' ORDER BY COALESCE(u.real_name, u.username), lp.start_time DESC, lp.created_at DESC';
+
+      const [planRows] = await connection.execute(planQuery, params);
+
+      const plansByStudentId = new Map();
+      for (const row of planRows) {
+        const totalTasks = Number(row.total_tasks || 0);
+        const completedTasks = Number(row.completed_tasks || 0);
+        const progressRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+        if (!plansByStudentId.has(row.student_id)) {
+          plansByStudentId.set(row.student_id, []);
+        }
+        plansByStudentId.get(row.student_id).push({
+          id: row.plan_id,
+          name: row.name,
+          description: row.description,
+          level: row.level,
+          start_time: row.start_time,
+          end_time: row.end_time,
+          is_active: row.is_active,
+          status: row.status,
+          joined_at: row.joined_at,
+          plan_progress: {
+            is_completed: row.is_completed === 1 || row.is_completed === true,
+            completed_tasks: completedTasks,
+            total_tasks: totalTasks,
+            progress_rate: progressRate,
+            completed_at: row.completed_at
+          }
+        });
+      }
+
+      const result = students.map(student => {
+        const plans = plansByStudentId.get(student.id) || [];
+        return {
+          student_id: student.id,
+          username: student.username,
+          real_name: student.real_name,
+          class_no: student.class_no,
+          plan_count: plans.length,
+          completed_plan_count: plans.filter(plan => plan.plan_progress.is_completed).length,
+          plans
+        };
+      }).filter(student => !level || student.plan_count > 0);
+
+      connection.release();
+
+      res.json({
+        success: true,
+        data: {
+          students: result
+        }
+      });
+    } catch (error) {
+      connection.release();
+      throw error;
+    }
+  } catch (error) {
+    logger.error('教师按学生聚合查看计划完成概览失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '教师按学生聚合查看计划完成概览失败',
+      message: error.message
     });
   }
 });
@@ -579,7 +784,7 @@ router.post('/public-plans/:token/query', async (req, res) => {
     const planId = plan.id;
     // 姓名同时按 real_name 与 username 匹配，多命中时按完成度优先再 real_name 优先
     const userSql = `
-      SELECT u.id, u.real_name,
+      SELECT u.id, u.username, u.real_name,
         (SELECT COUNT(DISTINCT CASE WHEN utp.is_completed = 1 THEN utp.task_id END)
          FROM user_learning_plans ulp
          JOIN learning_tasks lt ON lt.plan_id = ulp.plan_id
@@ -610,6 +815,118 @@ router.post('/public-plans/:token/query', async (req, res) => {
     const total_tasks = Number(row.total_tasks) || 0;
     const completed_tasks = Number(row.completed_tasks) || 0;
     const progress = total_tasks > 0 ? Math.round((completed_tasks * 100) / total_tasks) : 0;
+
+    const [taskRows] = await connection.execute(`
+      SELECT
+        lt.id,
+        lt.name,
+        lt.description,
+        lt.start_time,
+        lt.end_time,
+        lt.task_order,
+        lt.is_exam_mode,
+        COALESCE(utp.is_completed, 0) as is_completed,
+        utp.completed_at
+      FROM learning_tasks lt
+      LEFT JOIN user_task_progress utp ON lt.id = utp.task_id AND utp.user_id = ?
+      WHERE lt.plan_id = ?
+      ORDER BY lt.task_order, lt.start_time, lt.id
+    `, [user.id, planId]);
+
+    const tasks = [];
+    for (const task of taskRows) {
+      const [examRows] = await connection.execute(`
+        SELECT
+          e.id,
+          e.name,
+          e.level,
+          e.type,
+          te.exam_order,
+          COALESCE(uep.is_completed, 0) as is_completed,
+          COALESCE(uep.best_score, 0) as best_score,
+          COALESCE(uep.attempt_count, 0) as attempt_count,
+          uep.completed_at
+        FROM task_exams te
+        JOIN exams e ON te.exam_id = e.id
+        LEFT JOIN user_exam_progress uep ON e.id = uep.exam_id
+          AND uep.user_id = ? AND uep.task_id = ?
+        WHERE te.task_id = ?
+        ORDER BY te.exam_order, e.id
+      `, [user.id, task.id, task.id]);
+
+      const [ojRows] = await connection.execute(`
+        SELECT
+          op.id,
+          op.title,
+          op.level,
+          top.problem_order,
+          COALESCE(uop.is_completed, 0) as is_completed,
+          uop.best_verdict,
+          COALESCE(uop.attempt_count, 0) as attempt_count,
+          uop.completed_at,
+          COALESCE((
+            SELECT MAX(CASE WHEN os.total_tests > 0 THEN ROUND(os.passed_tests * 100.0 / os.total_tests, 0) ELSE 0 END)
+            FROM oj_submissions os
+            WHERE os.problem_id = op.id
+              AND os.user_id = ?
+              AND os.task_id = ?
+              AND os.status = 'completed'
+          ), 0) as best_pass_rate
+        FROM task_oj_problems top
+        JOIN oj_problems op ON top.problem_id = op.id
+        LEFT JOIN user_oj_progress uop ON op.id = uop.problem_id
+          AND uop.user_id = ? AND uop.task_id = ?
+        WHERE top.task_id = ?
+        ORDER BY top.problem_order, op.id
+      `, [user.id, task.id, user.id, task.id, task.id]);
+
+      const completedExams = examRows.filter(e => Number(e.is_completed) === 1 || e.is_completed === true).length;
+      const completedOjs = ojRows.filter(o => Number(o.is_completed) === 1 || o.is_completed === true).length;
+
+      tasks.push({
+        id: task.id,
+        name: task.name,
+        description: task.description,
+        start_time: task.start_time,
+        end_time: task.end_time,
+        task_order: task.task_order,
+        is_exam_mode: !!task.is_exam_mode,
+        is_completed: Number(task.is_completed) === 1 || task.is_completed === true,
+        completed_at: task.completed_at,
+        exam_progress: {
+          total: examRows.length,
+          completed: completedExams,
+          progress_rate: examRows.length > 0 ? Math.round((completedExams * 100) / examRows.length) : 0,
+          exams: examRows.map(exam => ({
+            id: exam.id,
+            name: exam.name,
+            level: exam.level,
+            type: exam.type,
+            is_completed: Number(exam.is_completed) === 1 || exam.is_completed === true,
+            best_score: Number(exam.best_score) || 0,
+            attempt_count: Number(exam.attempt_count) || 0,
+            completed_at: exam.completed_at
+          }))
+        },
+        oj_progress: {
+          total: ojRows.length,
+          completed: completedOjs,
+          progress_rate: ojRows.length > 0 ? Math.round((completedOjs * 100) / ojRows.length) : 0,
+          problems: ojRows.map(problem => ({
+            id: problem.id,
+            title: problem.title,
+            level: problem.level,
+            is_completed: Number(problem.is_completed) === 1 || problem.is_completed === true,
+            best_verdict: problem.best_verdict,
+            best_pass_rate: Number(problem.best_pass_rate) || 0,
+            score: Number(problem.best_pass_rate) || 0,
+            attempt_count: Number(problem.attempt_count) || 0,
+            completed_at: problem.completed_at
+          }))
+        }
+      });
+    }
+
     connection.release();
     res.json({
       found: true,
@@ -617,7 +934,8 @@ router.post('/public-plans/:token/query', async (req, res) => {
       plan_name: plan.name,
       completed_tasks,
       total_tasks,
-      progress
+      progress,
+      tasks
     });
   } catch (e) {
     logger.error('POST public-plans/:token/query', { error: e.message });
@@ -2167,10 +2485,10 @@ router.get('/learning-plans/:planId/progress', async (req, res) => {
           plan: plan,
           plan_progress: {
             is_completed: planProgress.is_completed === 1 || planProgress.is_completed === true,
-            completed_tasks: planProgress.completed_tasks || 0,
-            total_tasks: planProgress.total_tasks || tasks.length,
+            completed_tasks: Math.min(planProgress.completed_tasks || 0, tasks.length),
+            total_tasks: tasks.length,
             progress_rate: tasks.length > 0 
-              ? Math.round(((planProgress.completed_tasks || 0) / tasks.length) * 100) 
+              ? Math.round((Math.min(planProgress.completed_tasks || 0, tasks.length) / tasks.length) * 100) 
               : 0,
             completed_at: planProgress.completed_at
           },
@@ -2468,10 +2786,10 @@ router.get('/learning-plans/:planId/students-progress', async (req, res) => {
           real_name: student.real_name,
           plan_progress: {
             is_completed: planProgress.is_completed === 1 || planProgress.is_completed === true,
-            completed_tasks: planProgress.completed_tasks || 0,
-            total_tasks: planProgress.total_tasks || tasks.length,
+            completed_tasks: Math.min(planProgress.completed_tasks || 0, tasks.length),
+            total_tasks: tasks.length,
             progress_rate: tasks.length > 0 
-              ? Math.round(((planProgress.completed_tasks || 0) / tasks.length) * 100) 
+              ? Math.round((Math.min(planProgress.completed_tasks || 0, tasks.length) / tasks.length) * 100) 
               : 0
           },
           tasks: taskProgressList
@@ -2822,10 +3140,10 @@ router.get('/learning-plans/:planId/students/:studentId/progress', async (req, r
           plan: planRows[0],
           plan_progress: {
             is_completed: planProgress.is_completed === 1 || planProgress.is_completed === true,
-            completed_tasks: planProgress.completed_tasks || 0,
-            total_tasks: planProgress.total_tasks || tasks.length,
+            completed_tasks: Math.min(planProgress.completed_tasks || 0, tasks.length),
+            total_tasks: tasks.length,
             progress_rate: tasks.length > 0 
-              ? Math.round(((planProgress.completed_tasks || 0) / tasks.length) * 100) 
+              ? Math.round((Math.min(planProgress.completed_tasks || 0, tasks.length) / tasks.length) * 100) 
               : 0
           },
           tasks: taskDetails
@@ -4030,4 +4348,3 @@ router.post('/plan-templates/:id/create-plan', async (req, res) => {
 module.exports = router;
 module.exports.updateTaskCompletionStatus = updateTaskCompletionStatus;
 module.exports.updatePlanCompletionStatus = updatePlanCompletionStatus;
-

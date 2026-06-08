@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/database');
-const { cacheUtils } = require('../config/cache');
+const { cacheUtils, cacheMiddleware } = require('../config/cache');
 const { logger } = require('../config/logger');
 
 // 教师绑定学生
@@ -87,36 +87,26 @@ router.post('/teacher/:teacherId/students', async (req, res) => {
   }
 });
 
-// 获取教师的学生列表
-router.get('/teacher/:teacherId/students', async (req, res) => {
+// 获取教师的学生列表（带缓存，缓存60秒）
+router.get('/teacher/:teacherId/students', cacheMiddleware(60, 'students'), async (req, res) => {
   try {
     const { teacherId } = req.params;
-    const { status } = req.query; // 可选：按状态过滤
-    
+
     const connection = await pool.getConnection();
-    
-    let sql = `
+
+    // 只查必要字段，避免 JOIN submissions/submission_answers 导致笛卡尔积爆炸
+    const sql = `
       SELECT u.id, u.username, u.email, u.real_name, u.created_at,
-             ts.created_at as bound_at, ts.class_no,
-             COUNT(DISTINCT s.id) as submission_count,
-             COUNT(DISTINCT sa.id) as total_answers,
-             SUM(sa.is_correct) as correct_answers,
-             ROUND(SUM(sa.is_correct) * 100.0 / NULLIF(COUNT(sa.id), 0), 2) as correct_rate
+             ts.created_at as bound_at, ts.class_no
       FROM users u
       JOIN teacher_students ts ON u.id = ts.student_id
-      LEFT JOIN submissions s ON u.id = s.user_id
-      LEFT JOIN submission_answers sa ON s.id = sa.submission_id
       WHERE ts.teacher_id = ?
+      ORDER BY ts.created_at DESC
     `;
-    
-    const params = [teacherId];
-    
-    sql += ' GROUP BY u.id, u.username, u.email, u.real_name, u.created_at, ts.created_at, ts.class_no';
-    sql += ' ORDER BY ts.created_at DESC';
-    
-    const [results] = await connection.execute(sql, params);
+
+    const [results] = await connection.execute(sql, [teacherId]);
     connection.release();
-    
+
     res.json(results);
   } catch (error) {
     logger.error('获取教师学生列表错误', { error: error.message, teacherId });
@@ -713,8 +703,8 @@ router.get('/teacher/:teacherId/students/:studentId/exams/:examId/wrong-question
   }
 });
 
-// 获取老师绑定学生的全部提交记录
-router.get('/teacher/:teacherId/submissions-list', async (req, res) => {
+// 获取老师绑定学生的全部提交记录（缓存30秒）
+router.get('/teacher/:teacherId/submissions-list', cacheMiddleware(30, 'submissions-list'), async (req, res) => {
   try {
     const { teacherId } = req.params;
     const { exam_id, student_id } = req.query;
@@ -863,9 +853,9 @@ router.get('/teacher/:teacherId/students/:studentId/submissions/:submissionId', 
 });
 
 /**
- * 获取老师绑定学生的全部OJ提交记录
+ * 获取老师绑定学生的全部OJ提交记录（缓存30秒）
  * GET /teacher/:teacherId/oj-submissions
- * 
+ *
  * 查询参数:
  * - studentId: 学生ID（可选，过滤特定学生）
  * - problemId: 题目ID（可选，过滤特定题目）
@@ -874,7 +864,7 @@ router.get('/teacher/:teacherId/students/:studentId/submissions/:submissionId', 
  * - status: 过滤状态（可选：completed, error）
  * - verdict: 过滤结果（可选：Accepted, Wrong Answer等）
  */
-router.get('/teacher/:teacherId/oj-submissions', async (req, res) => {
+router.get('/teacher/:teacherId/oj-submissions', cacheMiddleware(30, 'oj-submissions'), async (req, res) => {
   try {
     const { teacherId } = req.params;
     const {
@@ -1777,8 +1767,8 @@ router.post('/teacher/:teacherId/animations/upload', htmlUpload.single('htmlFile
   }
 });
 
-// 获取所有动画列表（所有人可见）
-router.get('/animations', async (req, res) => {
+// 获取所有动画列表（所有人可见，缓存300秒）
+router.get('/animations', cacheMiddleware(300, 'animations'), async (req, res) => {
   try {
     const { category, search } = req.query;
     
@@ -1849,8 +1839,8 @@ router.get('/animations', async (req, res) => {
   }
 });
 
-// 获取教师上传的动画列表
-router.get('/teacher/:teacherId/animations', async (req, res) => {
+// 获取教师上传的动画列表（缓存60秒）
+router.get('/teacher/:teacherId/animations', cacheMiddleware(60, 'teacher-animations'), async (req, res) => {
   try {
     const { teacherId } = req.params;
     

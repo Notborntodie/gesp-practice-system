@@ -165,6 +165,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, inject } from 'vue'
+import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { BASE_URL } from '@/config/api'
 import type { Ref } from 'vue'
@@ -185,8 +186,12 @@ import OJSelectorDialog from './Dialog/OJSelectorDialog.vue'
 // Lucide Icons
 import { ArrowLeft, Save, Plus, X } from 'lucide-vue-next'
 
+// Router
+const router = useRouter()
+
 // Inject
 const testEditorTestId = inject<Ref<number | undefined>>('testEditorTestId')
+const closeTestEditor = inject<() => void>('closeTestEditor')
 
 // Get user ID from localStorage
 function getUserId(): number | null {
@@ -226,9 +231,16 @@ const form = ref({
 // Computed
 const isEditMode = computed(() => !!testEditorTestId?.value)
 const testId = computed(() => testEditorTestId?.value)
+const isTeacherRoute = computed(() => router.currentRoute.value.path.startsWith('/teacher'))
 
 function goBack() {
-  window.location.href = '/admin/tests'
+  if (closeTestEditor) {
+    closeTestEditor()
+  } else if (isTeacherRoute.value) {
+    router.push('/teacher/tests')
+  } else {
+    router.push('/admin/tests')
+  }
 }
 
 // Load test for edit - 使用管理端API

@@ -3,13 +3,13 @@
     title="题目管理"
     :loading="loading"
     :total="questions.length"
-    :cache-valid="questionStore.isCacheValid"
-    :has-cache="questionStore.hasQuestions"
+    :cache-valid="questionStore.isCacheValid.value"
+    :has-cache="questionStore.hasQuestions.value"
     @refresh="refreshQuestions"
   >
     <!-- Header Actions -->
     <template #header-actions>
-      <AppButton variant="primary" @click="openBatchUpload">
+      <AppButton variant="primary" @click="openBatchUpload" title="仅上传题目到题库，不创建练习">
         <Plus :size="16" />
         上传题目
       </AppButton>
@@ -21,7 +21,7 @@
         <label>搜索题目：</label>
         <AppInput
           v-model="searchQuery"
-          placeholder="搜索题目内容..."
+          placeholder="搜索题目ID / 练习 / 知识点..."
           clearable
         />
       </div>
@@ -43,10 +43,10 @@
       </div>
       <div class="filter-group">
         <label>日期筛选：</label>
-        <input
-          type="month"
+        <AppMonthSelect
           v-model="filterDate"
-          class="month-input"
+          :available-months="questionMonthValues"
+          placeholder="全部日期"
         />
       </div>
       <div class="filter-group">
@@ -86,29 +86,25 @@
             <th style="width: 50px;">
               <input
                 type="checkbox"
-                :checked="selectedQuestions.length === filteredQuestions.length && filteredQuestions.length > 0"
-                @change="selectAll"
+                :checked="isCurrentPageSelected"
+                @change="toggleCurrentPageSelection"
                 class="table-checkbox"
               />
             </th>
-            <th>序号</th>
-            <th>题目内容</th>
+            <th>题目ID</th>
             <th>题目来源</th>
             <th>级别</th>
-            <th>难度</th>
-            <th>类型</th>
-            <th>创建时间</th>
-            <th>正确答案</th>
             <th>知识点</th>
+            <th>所属练习</th>
             <th>操作</th>
           </tr>
         </thead>
         <tbody>
           <tr
-            v-for="(q, index) in filteredQuestions"
+            v-for="q in paginatedQuestions"
             :key="q.id"
             class="table-row"
-            @click="toggleQuestionExpansion(q.id)"
+            @click="openQuestionDetail(q)"
           >
             <td @click.stop>
               <input
@@ -118,15 +114,10 @@
                 class="table-checkbox"
               />
             </td>
-            <td>{{ q.question_number || (index + 1) }}</td>
-            <td class="question-content-cell">
-              <div class="question-preview">
-                {{ truncateText(q.question_text || '题目内容加载中...', 50) }}
-              </div>
-              <div v-if="(q.images && q.images.length > 0) || q.image_url" class="has-images-indicator">
-                <Image :size="14" />
-                {{ getImageCount(q) }}张图片
-              </div>
+            <td class="public-id-cell">
+              <span :class="['public-id-text', { 'public-id-empty': !q.public_id }]">
+                {{ getQuestionDisplayId(q) }}
+              </span>
             </td>
             <td>
               <AppTag :type="getCategoryTagType(q.category || 'GESP')">
@@ -139,14 +130,6 @@
               </AppTag>
               <span v-else class="no-level">-</span>
             </td>
-            <td>
-              <AppTag :type="getDifficultyTagType(q.difficulty || 'medium')">
-                {{ getDifficultyText(q.difficulty || 'medium') }}
-              </AppTag>
-            </td>
-            <td>{{ q.question_type === 'code' ? '代码题' : '文本题' }}</td>
-            <td>{{ formatDate(q.created_at) }}</td>
-            <td class="answer-cell">{{ q.correct_answer }}</td>
             <td class="knowledge-points-cell">
               <div v-if="q.knowledge_points && q.knowledge_points.length > 0" class="knowledge-tags">
                 <AppTag
@@ -163,6 +146,22 @@
               </div>
               <span v-else class="no-tags">-</span>
             </td>
+            <td class="exam-associations-cell">
+              <div v-if="q.exam_count > 0 && q.exam_summary" class="exam-tags">
+                <AppTag
+                  v-for="ea in getExamSummary(q.exam_summary).slice(0, 3)"
+                  :key="ea.exam_id"
+                  type="info"
+                  size="sm"
+                >
+                  {{ ea.name }} #{{ ea.qno }}
+                </AppTag>
+                <span v-if="getExamSummary(q.exam_summary).length > 3" class="more-tags">
+                  +{{ getExamSummary(q.exam_summary).length - 3 }}
+                </span>
+              </div>
+              <span v-else class="no-tags">-</span>
+            </td>
             <td @click.stop>
               <div class="row-actions">
                 <AppButton variant="ghost" size="sm" @click="openEditDialog(q)">
@@ -175,133 +174,172 @@
             </td>
           </tr>
 
-          <!-- Detail Row -->
-          <tr
-            v-for="question in filteredQuestions.filter(q => expandedQuestions.includes(q.id))"
-            :key="`detail-${question.id}`"
-            class="detail-row"
-          >
-            <td colspan="11">
-              <div class="question-details">
-                <!-- Loading Details -->
-                <div v-if="!question.options && !question.explanation" class="loading-details">
-                  <div class="loading-spinner-small"></div>
-                  <span>正在加载详细信息...</span>
-                </div>
-
-                <!-- Full Question Text -->
-                <div class="detail-section">
-                  <h5>完整题目内容</h5>
-                  <div class="question-full-text">
-                    {{ question.question_text || '题目内容加载中...' }}
-                  </div>
-                </div>
-
-                <!-- Images -->
-                <div v-if="(question.images && question.images.length > 0) || question.image_url" class="detail-section">
-                  <h5>题目图片</h5>
-                  <div class="images-preview-grid">
-                    <div
-                      v-if="question.image_url"
-                      class="preview-image-item"
-                      @click="openImageModal(getImageUrl(question.image_url))"
-                    >
-                      <img
-                        :src="getImageUrl(question.image_url)"
-                        alt="题目图片"
-                        class="preview-image"
-                      />
-                      <div class="preview-image-overlay">
-                        <span class="preview-image-count">主</span>
-                      </div>
-                    </div>
-                    <div
-                      v-for="(image, imageIndex) in (question.images || [])"
-                      :key="imageIndex"
-                      class="preview-image-item"
-                      @click="openImageModal(getImageUrl(image.image_url))"
-                    >
-                      <img
-                        :src="getImageUrl(image.image_url)"
-                        :alt="`附加图片 ${imageIndex + 1}`"
-                        class="preview-image"
-                      />
-                      <div class="preview-image-overlay">
-                        <span class="preview-image-count">{{ imageIndex + 1 }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Code -->
-                <div v-if="question.question_code" class="detail-section">
-                  <h5>题目代码</h5>
-                  <div class="code-block">
-                    <pre>{{ question.question_code }}</pre>
-                  </div>
-                </div>
-
-                <!-- Options -->
-                <div v-if="question.options && question.options.length > 0" class="detail-section">
-                  <h5>选项列表</h5>
-                  <div class="options-list">
-                    <div
-                      v-for="option in question.options"
-                      :key="option.label || option.option_label"
-                      class="option-item"
-                      :class="{ 'option-correct': (option.value || option.option_value) === question.correct_answer }"
-                    >
-                      <span class="option-label">{{ option.label || option.option_label }}.</span>
-                      <div class="option-content">
-                        <div v-if="(option.text || option.option_text) && (option.text || option.option_text).includes('\n')" class="option-code-block">
-                          <pre>{{ option.text || option.option_text }}</pre>
-                        </div>
-                        <span v-else class="option-text">{{ option.text || option.option_text }}</span>
-                      </div>
-                      <span v-if="(option.value || option.option_value) === question.correct_answer" class="correct-indicator">✓</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Explanation -->
-                <div v-if="question.explanation" class="detail-section">
-                  <h5>解释说明</h5>
-                  <div class="explanation-box">
-                    <p>{{ question.explanation }}</p>
-                  </div>
-                </div>
-
-                <!-- Stats -->
-                <div class="detail-section">
-                  <h5>题目统计</h5>
-                  <div class="stats-grid">
-                    <div class="stat-item">
-                      <span class="stat-label">原始编号</span>
-                      <span class="stat-value">#{{ question.question_number }}</span>
-                    </div>
-                    <div class="stat-item">
-                      <span class="stat-label">使用次数</span>
-                      <span class="stat-value">{{ question.usage_count || 0 }}</span>
-                    </div>
-                    <div class="stat-item">
-                      <span class="stat-label">正确率</span>
-                      <span class="stat-value">{{ question.correct_rate || 'N/A' }}%</span>
-                    </div>
-                    <div class="stat-item" v-if="question.question_date">
-                      <span class="stat-label">题目日期</span>
-                      <span class="stat-value">{{ question.question_date }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </td>
-          </tr>
         </tbody>
       </table>
+
+      <div v-if="filteredQuestions.length > 0" class="table-pagination">
+        <div class="pagination-info">
+          共 {{ filteredQuestions.length }} 条，当前 {{ pageStart }}-{{ pageEnd }} 条
+        </div>
+        <div class="pagination-controls">
+          <AppButton
+            variant="ghost"
+            size="sm"
+            :disabled="currentPage === 1"
+            @click="goToPage(currentPage - 1)"
+          >
+            上一页
+          </AppButton>
+          <span class="pagination-page">{{ currentPage }} / {{ totalPages }}</span>
+          <AppButton
+            variant="ghost"
+            size="sm"
+            :disabled="currentPage === totalPages"
+            @click="goToPage(currentPage + 1)"
+          >
+            下一页
+          </AppButton>
+          <select v-model.number="pageSize" class="page-size-select">
+            <option v-for="size in pageSizeOptions" :key="size" :value="size">
+              {{ size }} 条/页
+            </option>
+          </select>
+        </div>
+      </div>
 
       <!-- Empty State -->
       <AppEmptyState v-else type="empty" description="暂无题目" />
     </div>
+
+    <!-- Question Detail Dialog -->
+    <AppDialog
+      v-model:show="showDetailDialog"
+      :title="`题目详情 #${detailQuestion?.id || ''}`"
+      width="700"
+      :show-footer="false"
+    >
+      <div v-if="detailQuestion" class="question-details-dialog">
+        <!-- Loading -->
+        <div v-if="detailLoading" class="loading-details">
+          <div class="loading-spinner-small"></div>
+          <span>正在加载详细信息...</span>
+        </div>
+
+        <template v-else>
+          <!-- Full Question Text -->
+          <div class="detail-section">
+            <h5>完整题目内容</h5>
+            <div class="question-full-text">
+              {{ detailQuestion.question_text || '题目内容加载中...' }}
+            </div>
+          </div>
+
+          <!-- Images -->
+          <div v-if="(detailQuestion.images && detailQuestion.images.length > 0) || detailQuestion.image_url" class="detail-section">
+            <h5>题目图片</h5>
+            <div class="images-preview-grid">
+              <div
+                v-if="detailQuestion.image_url"
+                class="preview-image-item"
+                @click="openImageModal(getImageUrl(detailQuestion.image_url))"
+              >
+                <img :src="getImageUrl(detailQuestion.image_url)" alt="题目图片" class="preview-image" />
+                <div class="preview-image-overlay">
+                  <span class="preview-image-count">主</span>
+                </div>
+              </div>
+              <div
+                v-for="(image, imageIndex) in (detailQuestion.images || [])"
+                :key="imageIndex"
+                class="preview-image-item"
+                @click="openImageModal(getImageUrl(image.image_url))"
+              >
+                <img :src="getImageUrl(image.image_url)" :alt="`附加图片 ${imageIndex + 1}`" class="preview-image" />
+                <div class="preview-image-overlay">
+                  <span class="preview-image-count">{{ imageIndex + 1 }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Code -->
+          <div v-if="detailQuestion.question_code" class="detail-section">
+            <h5>题目代码</h5>
+            <div class="code-block">
+              <pre>{{ detailQuestion.question_code }}</pre>
+            </div>
+          </div>
+
+          <!-- Options -->
+          <div v-if="detailQuestion.options && detailQuestion.options.length > 0" class="detail-section">
+            <h5>选项列表</h5>
+            <div class="options-list">
+              <div
+                v-for="option in detailQuestion.options"
+                :key="option.label || option.option_label"
+                class="option-item"
+                :class="{ 'option-correct': (option.value || option.option_value) === detailQuestion.correct_answer }"
+              >
+                <span class="option-label">{{ option.label || option.option_label }}.</span>
+                <div class="option-content">
+                  <div v-if="(option.text || option.option_text) && (option.text || option.option_text).includes('\n')" class="option-code-block">
+                    <pre>{{ option.text || option.option_text }}</pre>
+                  </div>
+                  <span v-else class="option-text">{{ option.text || option.option_text }}</span>
+                </div>
+                <span v-if="(option.value || option.option_value) === detailQuestion.correct_answer" class="correct-indicator">✓</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Explanation -->
+          <div v-if="detailQuestion.explanation" class="detail-section">
+            <h5>解释说明</h5>
+            <div class="explanation-box">
+              <p>{{ detailQuestion.explanation }}</p>
+            </div>
+          </div>
+
+          <!-- Stats -->
+          <div class="detail-section">
+            <h5>题目统计</h5>
+            <div class="stats-grid">
+              <div class="stat-item">
+                <span class="stat-label">题目ID</span>
+                <span class="stat-value">{{ getQuestionDisplayId(detailQuestion) }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">内部ID</span>
+                <span class="stat-value">#{{ detailQuestion.id }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">使用次数</span>
+                <span class="stat-value">{{ detailQuestion.usage_count || 0 }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">正确率</span>
+                <span class="stat-value">{{ detailQuestion.correct_rate || 'N/A' }}%</span>
+              </div>
+              <div class="stat-item" v-if="detailQuestion.question_date">
+                <span class="stat-label">题目日期</span>
+                <span class="stat-value">{{ detailQuestion.question_date }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Exam Associations -->
+          <div v-if="detailQuestion.exam_count > 0 && detailQuestion.exam_summary" class="detail-section">
+            <h5>所属练习 ({{ detailQuestion.exam_count }})</h5>
+            <div class="exam-association-list">
+              <div v-for="ea in getExamSummary(detailQuestion.exam_summary)" :key="ea.exam_id" class="exam-association-item">
+                <AppTag type="info" size="sm">{{ ea.name }}</AppTag>
+                <span class="question-num">第 {{ ea.qno }} 题</span>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </AppDialog>
 
     <!-- Image Modal -->
     <div v-if="showImageModal" class="image-modal-overlay" @click="closeImageModal">
@@ -371,13 +409,14 @@ import axios from 'axios'
 import AdminPageTemplate from '@/components/admin/AdminPageTemplate.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
+import AppMonthSelect from '@/components/ui/AppMonthSelect.vue'
 import AppTag from '@/components/ui/AppTag.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppDialog from '@/components/ui/AppDialog.vue'
 import AppEmptyState from '@/components/ui/AppEmptyState.vue'
 
 // Lucide Icons
-import { Pencil, Trash2, Image, Plus, Edit3 } from 'lucide-vue-next'
+import { Pencil, Trash2, Plus, Edit3 } from 'lucide-vue-next'
 
 // Dialog Components
 import BatchEditDialog from './Dialog/BatchEditDialog.vue'
@@ -389,6 +428,7 @@ import { useQuestionTypeStore } from '@/stores/questionTypeStore'
 // Inject - navigation to editors
 const openQuestionEditor = inject<(questionId: number) => void>('openQuestionEditor')
 const openBatchUpload = inject<() => void>('openBatchUpload')
+const openExamEditor = inject<(examId?: number, questionIds?: number[]) => void>('openExamEditor')
 
 // Props
 interface Props {
@@ -406,11 +446,19 @@ const filterCategory = ref('')
 const filterLevel = ref('')
 const filterDate = ref('')
 const filterKnowledgePoint = ref('')
-const expandedQuestions = ref<number[]>([])
+
+// Detail dialog state
+const showDetailDialog = ref(false)
+const detailQuestion = ref<any>(null)
+const detailLoading = ref(false)
+
 const knowledgePoints = ref<any[]>([])
+
 
 // From Store
 const { questions, loading } = questionStore
+
+const questionMonthValues = computed(() => questions.value.map((question: any) => question.question_date))
 
 // Dialog State
 const showDeleteDialog = ref(false)
@@ -423,6 +471,9 @@ const selectedQuestions = ref<number[]>([])
 const selectedQuestionObjects = ref<any[]>([])
 const showBatchDeleteDialog = ref(false)
 const showBatchEditDialog = ref(false)
+const currentPage = ref(1)
+const pageSize = ref(50)
+const pageSizeOptions = [30, 50, 100, 200]
 
 // Filter Options
 const categoryOptions = computed(() => {
@@ -480,19 +531,60 @@ const filteredQuestions = computed(() => {
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
     list = list.filter(q =>
-      q.question_text?.toLowerCase().includes(query) ||
-      q.question_code?.toLowerCase().includes(query) ||
-      q.correct_answer?.toLowerCase().includes(query)
+      q.public_id?.toLowerCase().includes(query) ||
+      getCategoryText(q.category || 'GESP').toLowerCase().includes(query) ||
+      q.knowledge_points?.some((kp: any) => kp.name?.toLowerCase().includes(query)) ||
+      getExamSummary(q.exam_summary).some((ea: any) => ea.name?.toLowerCase().includes(query))
     )
   }
 
-  return list.sort((a, b) => (a.question_number || 0) - (b.question_number || 0))
+  return list.sort((a, b) => {
+    if (a.public_id && b.public_id) return compareQuestionPublicIds(a.public_id, b.public_id)
+    if (a.public_id) return -1
+    if (b.public_id) return 1
+    return (a.id || 0) - (b.id || 0)
+  })
+})
+
+const totalPages = computed(() => {
+  return Math.max(1, Math.ceil(filteredQuestions.value.length / pageSize.value))
+})
+
+const pageStartIndex = computed(() => {
+  return (currentPage.value - 1) * pageSize.value
+})
+
+const paginatedQuestions = computed(() => {
+  return filteredQuestions.value.slice(pageStartIndex.value, pageStartIndex.value + pageSize.value)
+})
+
+const pageStart = computed(() => {
+  if (filteredQuestions.value.length === 0) return 0
+  return pageStartIndex.value + 1
+})
+
+const pageEnd = computed(() => {
+  return Math.min(pageStartIndex.value + pageSize.value, filteredQuestions.value.length)
+})
+
+const isCurrentPageSelected = computed(() => {
+  return paginatedQuestions.value.length > 0 && paginatedQuestions.value.every(q => selectedQuestions.value.includes(q.id))
 })
 
 // Watch filterCategory
 watch(filterCategory, (newVal) => {
   if (newVal && newVal !== 'GESP') {
     filterLevel.value = ''
+  }
+})
+
+watch([searchQuery, filterCategory, filterLevel, filterDate, filterKnowledgePoint], () => {
+  currentPage.value = 1
+})
+
+watch([pageSize, filteredQuestions], () => {
+  if (currentPage.value > totalPages.value) {
+    currentPage.value = totalPages.value
   }
 })
 
@@ -509,23 +601,29 @@ async function fetchQuestions(forceRefresh = false) {
 async function fetchKnowledgePoints() {
   try {
     const response = await axios.get(`${BASE_URL}/knowledge-points`)
-    knowledgePoints.value = response.data
+    knowledgePoints.value = Array.isArray(response.data) ? response.data : []
   } catch (error: any) {
     console.error('获取知识点列表失败:', error)
+    knowledgePoints.value = []
   }
 }
 
-// Toggle Expansion
-function toggleQuestionExpansion(id: number) {
-  const idx = expandedQuestions.value.indexOf(id)
-  if (idx === -1) {
-    expandedQuestions.value.push(id)
-    const question = questionStore.questions.value.find(q => q.id === id)
-    if (question && (!question.options || !question.explanation)) {
-      questionStore.preloadQuestionDetails(id)
+// Open question detail dialog
+async function openQuestionDetail(q: any) {
+  detailQuestion.value = q
+  showDetailDialog.value = true
+
+  // Load full details if not already loaded
+  if (!q.options && !q.explanation) {
+    detailLoading.value = true
+    try {
+      await questionStore.preloadQuestionDetails(q.id)
+      // Update the ref after loading
+      const updated = questionStore.questions.value.find((item: any) => item.id === q.id)
+      if (updated) detailQuestion.value = { ...updated }
+    } finally {
+      detailLoading.value = false
     }
-  } else {
-    expandedQuestions.value.splice(idx, 1)
   }
 }
 
@@ -552,6 +650,27 @@ function selectAll() {
     selectedQuestions.value = filteredQuestions.value.map(q => q.id)
     selectedQuestionObjects.value = [...filteredQuestions.value]
   }
+}
+
+function toggleCurrentPageSelection() {
+  const pageIds = paginatedQuestions.value.map(q => q.id)
+  if (pageIds.length === 0) return
+
+  if (pageIds.every(id => selectedQuestions.value.includes(id))) {
+    selectedQuestions.value = selectedQuestions.value.filter(id => !pageIds.includes(id))
+  } else {
+    const selectedSet = new Set(selectedQuestions.value)
+    pageIds.forEach(id => selectedSet.add(id))
+    selectedQuestions.value = Array.from(selectedSet)
+  }
+
+  selectedQuestionObjects.value = selectedQuestions.value.map(id => {
+    return questionStore.questions.value.find(q => q.id === id) || { id }
+  })
+}
+
+function goToPage(page: number) {
+  currentPage.value = Math.min(Math.max(page, 1), totalPages.value)
 }
 
 function clearSelection() {
@@ -686,17 +805,32 @@ function closeImageModal() {
   selectedImageUrl.value = ''
 }
 
-// Helpers
-function truncateText(text: string, maxLength: number): string {
-  if (!text || text.length <= maxLength) return text
-  return text.substring(0, maxLength) + '...'
+function getExamSummary(summary: any): any[] {
+  if (!summary) return []
+  if (Array.isArray(summary)) return summary
+  try { return JSON.parse(summary) } catch { return [] }
 }
 
-function getImageCount(question: any): number {
-  let count = 0
-  if (question.image_url) count++
-  if (question.images && question.images.length > 0) count += question.images.length
-  return count
+function getQuestionDisplayId(question: any): string {
+  if (question?.public_id) return question.public_id
+  return `未编号 #${question?.id || ''}`
+}
+
+function compareQuestionPublicIds(a: string, b: string): number {
+  const parsedA = parseGespPublicId(a)
+  const parsedB = parseGespPublicId(b)
+  if (parsedA && parsedB) {
+    return parsedA.sortKey.localeCompare(parsedB.sortKey)
+  }
+  return a.localeCompare(b)
+}
+
+function parseGespPublicId(publicId: string): { sortKey: string } | null {
+  const match = publicId.match(/^GESP(\d{2})(\d{2})(\d{2})Q(\d+)$/)
+  if (!match) return null
+  return {
+    sortKey: `${match[1]}${match[2]}${match[3]}${String(Number(match[4])).padStart(4, '0')}`
+  }
 }
 
 function getCategoryText(category: string) {
@@ -713,24 +847,6 @@ function getCategoryTagType(category: string): 'success' | 'info' | 'warning' | 
     'NOI_A': 'warning',
   }
   return map[category] || 'default'
-}
-
-function getDifficultyText(d: string): string {
-  const map: Record<string, string> = { 'easy': '简单', 'medium': '中等', 'hard': '困难' }
-  return map[d] || '中等'
-}
-
-function getDifficultyTagType(d: string): 'success' | 'warning' | 'default' {
-  const map: Record<string, 'success' | 'warning' | 'default'> = {
-    'easy': 'success',
-    'hard': 'warning',
-  }
-  return map[d] || 'default'
-}
-
-function formatDate(dateStr: string): string {
-  if (!dateStr) return ''
-  return new Date(dateStr).toLocaleDateString()
 }
 
 // Watch Refresh Trigger
@@ -764,27 +880,6 @@ onMounted(async () => {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   white-space: nowrap;
-}
-
-.month-input {
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-foreground);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  transition: border-color var(--transition-fast);
-}
-
-.month-input:hover {
-  border-color: var(--color-primary);
-}
-
-.month-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-primary-alpha);
 }
 
 /* Batch Toolbar */
@@ -858,22 +953,19 @@ onMounted(async () => {
   accent-color: var(--color-primary);
 }
 
-.question-content-cell {
-  max-width: 300px;
+.public-id-cell {
+  min-width: 150px;
 }
 
-.question-preview {
-  font-weight: 500;
-  color: var(--color-foreground);
-  line-height: 1.4;
-  margin-bottom: var(--space-1);
+.public-id-text {
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-primary);
+  white-space: nowrap;
 }
 
-.has-images-indicator {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: var(--font-size-xs);
+.public-id-empty {
   color: var(--color-text-muted);
 }
 
@@ -881,13 +973,8 @@ onMounted(async () => {
   color: var(--color-text-muted);
 }
 
-.answer-cell {
-  font-weight: 600;
-  color: var(--color-accent);
-}
-
 .knowledge-points-cell {
-  max-width: 150px;
+  max-width: 220px;
 }
 
 .knowledge-tags {
@@ -912,21 +999,61 @@ onMounted(async () => {
   gap: var(--space-2);
 }
 
-/* Detail Row */
-.detail-row {
-  background: var(--color-muted);
-}
-
-.detail-row td {
-  padding: 0;
-}
-
-.question-details {
-  padding: var(--space-5);
-  margin: var(--space-3);
+.table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
   background: var(--color-surface);
-  border-radius: var(--radius-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.pagination-info {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pagination-page {
+  min-width: 64px;
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.page-size-select {
+  height: 32px;
+  padding: 0 var(--space-2);
   border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font-size: var(--font-size-sm);
+}
+
+@media (max-width: 768px) {
+  .table-pagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pagination-controls {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+}
+
+/* Question Detail Dialog */
+.question-details-dialog {
+  max-height: 70vh;
+  overflow-y: auto;
 }
 
 .loading-details {
@@ -1159,8 +1286,12 @@ onMounted(async () => {
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-xl);
-  max-width: 90%;
-  max-height: 90%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  max-width: 90vw;
+  max-height: 90vh;
   position: relative;
 }
 
@@ -1184,9 +1315,39 @@ onMounted(async () => {
 }
 
 .modal-image {
-  max-width: 100%;
-  max-height: 100%;
+  max-width: 90vw;
+  max-height: 85vh;
+  width: auto;
+  height: auto;
   object-fit: contain;
   border-radius: var(--radius-lg);
+}
+
+/* Exam Associations */
+.exam-associations-cell .exam-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.exam-association-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.exam-association-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-muted);
+  border-radius: var(--radius-sm);
+}
+
+.exam-association-item .question-num {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
 }
 </style>

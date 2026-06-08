@@ -1,0 +1,999 @@
+import json
+import os
+import requests
+from typing import Dict, Any, List, Generator, AsyncGenerator
+import re
+import asyncio
+
+class LLMStreamProcessor:
+    """
+    真正的流式LLM处理器，支持实时流式输出题目
+    """
+    
+    def __init__(self, api_key: str = None, max_tokens: int = 16000, model: str = None):
+        # 检测模型类型
+        model = model or os.getenv("LLM_MODEL", "qwen-plus-latest")
+
+        if model.startswith("glm-"):
+            # 智谱AI
+            self.api_key = api_key or os.getenv("ZHIPU_API_KEY")
+            self.api_url = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+            self.provider = "zhipu"
+        else:
+            # 阿里云DashScope
+            self.api_key = api_key or os.getenv("DASHSCOPE_API_KEY")
+            self.api_url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+            self.provider = "dashscope"
+
+        self.model = model
+        # 增加默认max_tokens，确保长文本也能完整输出
+        self.max_tokens = max_tokens if max_tokens else 32000
+    
+    def create_question_prompt(self, pdf_text: str, expected_questions: int = None) -> str:
+        """创建提取题目的prompt"""
+        calibration_text = ""
+        if expected_questions is not None:
+            calibration_text = f"""
+
+⚠️⚠️⚠️ 极其重要的要求 ⚠️⚠️⚠️：
+- 预期题目数量：{expected_questions} 个
+- 你必须从PDF中提取恰好 {expected_questions} 个题目
+- 提取满 {expected_questions} 个题目后立即停止，不要再继续输出更多题目
+- 只需要提取前 {expected_questions} 个题目即可，不需要提取PDF中的所有题目"""
+        
+        return f"""请将以下PDF文本中的题目转换为标准JSON格式。
+
+⚠️ 输出要求：直接输出JSON格式，不要输出任何思考过程、分析步骤、前言或后语。每个题目必须以单个 '{{' 开始，而不是 '{{{{'。
+
+要求：
+1. 分question_type两类题目：code和text
+2. 如果题目有代码，则是code类型，反之text
+3. 如果是code类型，则有question_code字段，如果是text类型，则question_code是空字符串
+4. 每个题目包含：question_text, question_type, question_code, correct_answer, explanation, level, difficulty, options
+5. level表示难度等级（1-5），difficulty表示难度描述（easy/medium/hard）{calibration_text}
+
+重要格式要求：
+- 每个题目之间用 "---QUESTION_SEPARATOR---" 分隔
+- 每完成一个题目就立即输出，不要等待所有题目完成
+- 严格按照JSON格式输出每个题目（单层花括号）
+
+代码处理要求：
+- 对于code类型的题目，question_code字段中的代码需要：
+  1. 移除行号（如"1 cin >> a;" → "cin >> a;"）
+  2. 添加正确的缩进（根据代码结构添加适当的空格或制表符）
+  3. 保持代码的完整性和可读性
+  4. 确保代码语法正确
+
+题目文本处理要求：
+- question_text字段中不要包含题目编号（如"第1题"、"第2题"等）
+- 只保留题目的实际内容，去除编号前缀
+- 保持题目的完整性和清晰度
+
+PDF文本：
+{pdf_text}
+
+请按照以下格式输出（注意：使用单层花括号）:
+{{
+  "question_text": "题目文本（不包含题目编号）",
+  "question_type": "code或text",
+  "question_code": "代码内容（移除行号，添加正确缩进）或空字符串",
+  "correct_answer": "正确答案标签",
+  "explanation": "解释说明",
+  "level": 难度等级,
+  "difficulty": "难度描述",
+  "options": [
+    {{"label": "A", "value": "A", "text": "选项内容"}},
+    {{"label": "B", "value": "B", "text": "选项内容"}},
+    {{"label": "C", "value": "C", "text": "选项内容"}},
+    {{"label": "D", "value": "D", "text": "选项内容"}}
+  ]
+}}
+---QUESTION_SEPARATOR---
+{{
+  "question_text": "下一个题目文本（不包含题目编号）",
+  "question_type": "code或text",
+  "question_code": "代码内容（移除行号，添加正确缩进）或空字符串",
+  "correct_answer": "正确答案标签",
+  "explanation": "解释说明",
+  "level": 难度等级,
+  "difficulty": "难度描述",
+  "options": [
+    {{"label": "A", "value": "A", "text": "选项内容"}},
+    {{"label": "B", "value": "B", "text": "选项内容"}},
+    {{"label": "C", "value": "C", "text": "选项内容"}},
+    {{"label": "D", "value": "D", "text": "选项内容"}}
+  ]
+}}
+---QUESTION_SEPARATOR---
+
+⚠️ 重要：输出完上述指定数量的题目后立即停止，不要再输出更多题目！"""
+    
+    def call_api_stream(self, prompt: str) -> Generator[str, None, None]:
+        """调用API并返回流式响应（支持DashScope和智谱AI）"""
+        try:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}"
+            }
+
+            # 根据prompt长度动态调整max_tokens，确保有足够的输出空间
+            # 估算：每个题目大约需要500-1000 tokens，加上prompt本身
+            estimated_output_tokens = len(prompt) // 2  # 粗略估算输出token数
+            dynamic_max_tokens = max(self.max_tokens, estimated_output_tokens + 10000)
+
+            data = {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": "你是一个专业的题目解析助手。你必须完整提取所有题目，不能遗漏任何一道题。直接输出JSON格式，不要输出任何思考过程、解释说明或其他内容，不要以'Thinking Process'或类似标题开头。"},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0,
+                "max_tokens": min(dynamic_max_tokens, 32000),  # 设置最大输出token数，但不超过模型限制
+                "stream": True  # 启用流式输出
+            }
+
+            response = requests.post(
+                self.api_url,
+                headers=headers,
+                json=data,
+                timeout=180,
+                stream=True
+            )
+            response.raise_for_status()
+
+            for line in response.iter_lines():
+                if line:
+                    line_str = line.decode('utf-8')
+                    if line_str.startswith('data: '):
+                        data_str = line_str[6:]  # 移除 'data: ' 前缀
+                        if data_str.strip() == '[DONE]':
+                            break
+                        try:
+                            chunk_data = json.loads(data_str)
+                            if 'choices' in chunk_data and len(chunk_data['choices']) > 0:
+                                delta = chunk_data['choices'][0].get('delta', {})
+                                # DashScope: qwen3.5-flash 使用 reasoning_content，其他模型使用 content
+                                # 智谱AI: 只使用 content
+                                if self.provider == "zhipu":
+                                    content = delta.get('content', '')
+                                else:
+                                    content = delta.get('content') or delta.get('reasoning_content')
+                                if content:
+                                    yield content
+                        except json.JSONDecodeError:
+                            continue
+
+        except Exception as e:
+            provider_name = "智谱AI" if self.provider == "zhipu" else "DashScope"
+            raise Exception(f"调用{provider_name} API失败: {str(e)}")
+    
+    async def call_api_stream_async(self, prompt: str) -> AsyncGenerator[str, None]:
+        """异步调用API并返回流式响应（支持DashScope和智谱AI）"""
+        try:
+            import aiohttp
+
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}"
+            }
+
+            # 根据prompt长度动态调整max_tokens，确保有足够的输出空间
+            # 估算：每个题目大约需要500-1000 tokens，加上prompt本身
+            estimated_output_tokens = len(prompt) // 2  # 粗略估算输出token数
+            dynamic_max_tokens = max(self.max_tokens, estimated_output_tokens + 10000)
+
+            data = {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": "你是一个专业的题目解析助手。你必须完整提取所有题目，不能遗漏任何一道题。直接输出JSON格式，不要输出任何思考过程、解释说明或其他内容，不要以'Thinking Process'或类似标题开头。"},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0,
+                "max_tokens": min(dynamic_max_tokens, 32000),  # 设置最大输出token数，但不超过模型限制
+                "stream": True  # 启用流式输出
+            }
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    self.api_url,
+                    headers=headers,
+                    json=data,
+                    timeout=aiohttp.ClientTimeout(total=180)
+                ) as response:
+                    response.raise_for_status()
+
+                    async for line in response.content:
+                        line_str = line.decode('utf-8')
+                        if line_str.startswith('data: '):
+                            data_str = line_str[6:]  # 移除 'data: ' 前缀
+                            if data_str.strip() == '[DONE]':
+                                break
+                            try:
+                                chunk_data = json.loads(data_str)
+                                if 'choices' in chunk_data and len(chunk_data['choices']) > 0:
+                                    delta = chunk_data['choices'][0].get('delta', {})
+                                    # DashScope: qwen3.5-flash 使用 reasoning_content，其他模型使用 content
+                                    # 智谱AI: 只使用 content
+                                    if self.provider == "zhipu":
+                                        content = delta.get('content', '')
+                                    else:
+                                        content = delta.get('content') or delta.get('reasoning_content')
+                                    if content:
+                                        yield content
+                            except json.JSONDecodeError:
+                                continue
+
+        except Exception as e:
+            provider_name = "智谱AI" if self.provider == "zhipu" else "DashScope"
+            raise Exception(f"调用{provider_name} API失败: {str(e)}")
+    
+    def parse_streaming_json(self, stream_generator: Generator[str, None, None]) -> Generator[Dict[str, Any], None, None]:
+        """解析流式JSON响应，使用分割符实时提取完整题目"""
+        buffer = ""
+        separator = "---QUESTION_SEPARATOR---"
+        raw_output = ""
+        question_count = 0
+
+        for chunk in stream_generator:
+            buffer += chunk
+            raw_output += chunk
+            
+            # 查找分割符，提取完整的题目
+            while separator in buffer:
+                # 找到分割符的位置
+                separator_pos = buffer.find(separator)
+                
+                # 提取分割符之前的内容作为题目JSON
+                question_json = buffer[:separator_pos].strip()
+                
+                # 移除已处理的部分
+                buffer = buffer[separator_pos + len(separator):].strip()
+                
+                # 尝试解析题目JSON
+                if question_json:
+                    try:
+                        question_obj = json.loads(question_json)
+                        if self.is_valid_question(question_obj):
+                            question_count += 1
+                            # 记录前3个题目的详细信息
+                            if question_count <= 3:
+                                print(f"\n✅ 成功解析第{question_count}个题目:")
+                                print(f"   题目文本: {question_obj.get('question_text', '')[:100]}...")
+                                print(f"   题目类型: {question_obj.get('question_type', '')}")
+                                print(f"   正确答案: {question_obj.get('correct_answer', '')}")
+                            yield question_obj
+                    except json.JSONDecodeError as e:
+                        print(f"JSON解析错误: {e}")
+                        print(f"问题JSON: {question_json[:200]}...")
+                        continue
+
+        # 流结束后，记录原始输出
+        print(f"\n📦 AI返回的原始输出（前500字符）:")
+        print(raw_output[:500] if len(raw_output) > 500 else raw_output)
+        print(f"\n📊 总共解析了 {question_count} 个题目\n")
+
+        # 流结束后，处理buffer中剩余的最后一个题目（可能没有分隔符）
+        if buffer.strip():
+            # 尝试提取可能的JSON对象
+            buffer = buffer.strip()
+            # 尝试找到最后一个完整的JSON对象
+            try:
+                # 尝试直接解析整个buffer
+                question_obj = json.loads(buffer)
+                if self.is_valid_question(question_obj):
+                    yield question_obj
+            except json.JSONDecodeError:
+                # 如果直接解析失败，尝试找到最后一个完整的JSON对象
+                # 查找最后一个 { 和对应的 }
+                last_open = buffer.rfind('{')
+                if last_open != -1:
+                    # 尝试从最后一个 { 开始解析
+                    for i in range(len(buffer), last_open, -1):
+                        try:
+                            potential_json = buffer[last_open:i]
+                            question_obj = json.loads(potential_json)
+                            if self.is_valid_question(question_obj):
+                                yield question_obj
+                                break
+                        except json.JSONDecodeError:
+                            continue
+    
+    async def parse_streaming_json_async(self, stream_generator: AsyncGenerator[str, None]) -> AsyncGenerator[Dict[str, Any], None]:
+        """异步解析流式JSON响应，使用分割符实时提取完整题目"""
+        buffer = ""
+        separator = "---QUESTION_SEPARATOR---"
+
+        async for chunk in stream_generator:
+            buffer += chunk
+            
+            # 查找分割符，提取完整的题目
+            while separator in buffer:
+                # 找到分割符的位置
+                separator_pos = buffer.find(separator)
+                
+                # 提取分割符之前的内容作为题目JSON
+                question_json = buffer[:separator_pos].strip()
+                
+                # 移除已处理的部分
+                buffer = buffer[separator_pos + len(separator):].strip()
+                
+                # 尝试解析题目JSON
+                if question_json:
+                    try:
+                        question_obj = json.loads(question_json)
+                        if self.is_valid_question(question_obj):
+                            question_count += 1
+                            # 记录前3个题目的详细信息
+                            if question_count <= 3:
+                                print(f"\n✅ 成功解析第{question_count}个题目:")
+                                print(f"   题目文本: {question_obj.get('question_text', '')[:100]}...")
+                                print(f"   题目类型: {question_obj.get('question_type', '')}")
+                                print(f"   正确答案: {question_obj.get('correct_answer', '')}")
+                            yield question_obj
+                    except json.JSONDecodeError as e:
+                        print(f"JSON解析错误: {e}")
+                        print(f"问题JSON: {question_json[:200]}...")
+                        continue
+
+        # 流结束后，记录原始输出
+        print(f"\n📦 AI返回的原始输出（前500字符）:")
+        print(raw_output[:500] if len(raw_output) > 500 else raw_output)
+        print(f"\n📊 总共解析了 {question_count} 个题目\n")
+
+        # 流结束后，处理buffer中剩余的最后一个题目（可能没有分隔符）
+        if buffer.strip():
+            # 尝试提取可能的JSON对象
+            buffer = buffer.strip()
+            # 尝试找到最后一个完整的JSON对象
+            try:
+                # 尝试直接解析整个buffer
+                question_obj = json.loads(buffer)
+                if self.is_valid_question(question_obj):
+                    yield question_obj
+            except json.JSONDecodeError:
+                # 如果直接解析失败，尝试找到最后一个完整的JSON对象
+                # 查找最后一个 { 和对应的 }
+                last_open = buffer.rfind('{')
+                if last_open != -1:
+                    # 尝试从最后一个 { 开始解析
+                    for i in range(len(buffer), last_open, -1):
+                        try:
+                            potential_json = buffer[last_open:i]
+                            question_obj = json.loads(potential_json)
+                            if self.is_valid_question(question_obj):
+                                yield question_obj
+                                break
+                        except json.JSONDecodeError:
+                            continue
+    
+    def is_valid_question(self, obj: Dict[str, Any]) -> bool:
+        """检查是否是有效的题目对象"""
+        required_fields = ['question_text', 'question_type', 'correct_answer', 'options']
+        return all(field in obj for field in required_fields)
+    
+    def split_pdf_text_intelligently(self, pdf_text: str, max_chunk_size: int = 3000) -> List[str]:
+        """
+        智能分割PDF文本，保持题目完整性
+        基于pdfplumber提取的优化格式进行分割
+        
+        Args:
+            pdf_text: PDF文本内容
+            max_chunk_size: 每个片段的最大字符数
+            
+        Returns:
+            分割后的文本片段列表
+        """
+        if len(pdf_text) <= max_chunk_size:
+            return [pdf_text]
+        
+        chunks = []
+        lines = pdf_text.split('\n')
+        
+        # 识别题目边界
+        question_boundaries = []
+        for i, line in enumerate(lines):
+            # 匹配题目编号模式
+            if re.match(r'第\s*\d+\s*题', line.strip()):
+                question_boundaries.append(i)
+            # 匹配章节分隔
+            elif re.match(r'\d+\s*(单选题|判断题|编程题)', line.strip()):
+                question_boundaries.append(i)
+        
+        # 如果没有找到题目边界，使用原来的方法
+        if not question_boundaries:
+            return self._split_by_size_fallback(pdf_text, max_chunk_size)
+        
+        # 按题目边界分割
+        current_chunk = ""
+        current_size = 0
+        
+        for i, line in enumerate(lines):
+            line_with_newline = line + '\n'
+            line_size = len(line_with_newline)
+            
+            # 检查是否是题目边界且当前块已经有一定大小
+            if (i in question_boundaries and 
+                current_size > max_chunk_size * 0.3 and  # 至少达到30%的大小
+                current_chunk.strip()):
+                # 保存当前块
+                chunks.append(current_chunk.strip())
+                current_chunk = line_with_newline
+                current_size = line_size
+            else:
+                # 检查是否会超过最大大小
+                if current_size + line_size > max_chunk_size and current_chunk.strip():
+                    # 寻找最近的题目边界进行分割
+                    split_point = self._find_best_split_point(current_chunk, question_boundaries, i, lines)
+                    if split_point > 0:
+                        chunks.append(current_chunk[:split_point].strip())
+                        current_chunk = current_chunk[split_point:] + line_with_newline
+                        current_size = len(current_chunk)
+                    else:
+                        # 强制分割
+                        chunks.append(current_chunk.strip())
+                        current_chunk = line_with_newline
+                        current_size = line_size
+                else:
+                    current_chunk += line_with_newline
+                    current_size += line_size
+        
+        # 添加最后一个片段
+        if current_chunk.strip():
+            chunks.append(current_chunk.strip())
+        
+        return chunks
+    
+    def _find_best_split_point(self, text: str, boundaries: List[int], current_line: int, all_lines: List[str]) -> int:
+        """寻找最佳分割点"""
+        # 在文本中寻找最近的题目开始位置
+        lines = text.split('\n')
+        for i in range(len(lines) - 1, -1, -1):
+            line = lines[i].strip()
+            if re.match(r'第\s*\d+\s*题', line):
+                # 找到题目开始，返回该位置
+                return sum(len(lines[j] + '\n') for j in range(i))
+        return 0
+    
+    def _split_by_size_fallback(self, pdf_text: str, max_chunk_size: int) -> List[str]:
+        """备用分割方法，按大小分割"""
+        chunks = []
+        current_chunk = ""
+        lines = pdf_text.split('\n')
+        
+        for line in lines:
+            if len(current_chunk) + len(line) + 1 > max_chunk_size:
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                    current_chunk = line
+                else:
+                    chunks.append(line[:max_chunk_size])
+                    current_chunk = line[max_chunk_size:]
+            else:
+                current_chunk += "\n" + line if current_chunk else line
+        
+        if current_chunk:
+            chunks.append(current_chunk.strip())
+        
+        return chunks
+    
+    def estimate_questions_in_text(self, text: str) -> int:
+        """
+        估算文本中的题目数量
+        基于pdfplumber提取的优化格式进行估算
+        
+        Args:
+            text: 文本内容
+            
+        Returns:
+            估算的题目数量
+        """
+        # 基于新的文本格式进行估算
+        question_count = 0
+        
+        # 1. 直接计算题目编号
+        question_pattern = r'第\s*\d+\s*题'
+        question_matches = re.findall(question_pattern, text)
+        question_count = max(question_count, len(question_matches))
+        
+        # 2. 计算选项组数量（A. B. C. D. 的组合）
+        option_groups = 0
+        lines = text.split('\n')
+        in_option_group = False
+        option_count = 0
+        
+        for line in lines:
+            line = line.strip()
+            # 检测选项开始
+            if re.match(r'^[A-D]\s*[\.\)]\s*', line):
+                if not in_option_group:
+                    in_option_group = True
+                    option_count = 1
+                else:
+                    option_count += 1
+            else:
+                # 如果之前有选项组且现在结束了
+                if in_option_group and option_count >= 2:  # 至少2个选项才算一个题目
+                    option_groups += 1
+                in_option_group = False
+                option_count = 0
+        
+        # 处理最后一个选项组
+        if in_option_group and option_count >= 2:
+            option_groups += 1
+        
+        question_count = max(question_count, option_groups)
+        
+        # 3. 计算代码块数量（作为编程题的指标）
+        code_blocks = 0
+        in_code_block = False
+        for line in lines:
+            line = line.strip()
+            # 检测代码行（有行号的代码）
+            if re.match(r'^\d+\s+', line) and any(keyword in line for keyword in ['cin', 'cout', 'for', 'int', 'if', 'while']):
+                if not in_code_block:
+                    in_code_block = True
+                    code_blocks += 1
+            elif line and not re.match(r'^\d+\s+', line):
+                in_code_block = False
+        
+        # 4. 综合估算
+        # 优先使用题目编号，其次使用选项组，最后使用代码块
+        if question_count > 0:
+            return question_count
+        elif option_groups > 0:
+            return option_groups
+        elif code_blocks > 0:
+            return code_blocks
+        else:
+            # 备用方法：通过其他指标估算
+            fallback_indicators = [
+                r'正确答案\s*[A-D]',
+                r'答案\s*[A-D]',
+                r'\(\s*\d+\s*分\s*\)'
+            ]
+            
+            count = 0
+            for pattern in fallback_indicators:
+                matches = re.findall(pattern, text, re.IGNORECASE)
+                count += len(matches)
+            
+            return max(1, count)
+    
+    def process_pdf_text_stream(self, pdf_text: str, expected_questions: int = None) -> Generator[Dict[str, Any], None, None]:
+        """流式处理PDF文本（使用分批处理策略）"""
+        # 默认使用分批处理，每批5题
+        yield from self.extract_questions_in_batches(pdf_text, expected_questions, batch_size=5)
+            
+            # 直接使用整个PDF文本，不进行分割
+            yield {
+                "type": "chunk_info",
+                "message": f"PDF文本长度: {len(pdf_text)} 字符，直接处理整个文本",
+                "chunk_count": 1
+            }
+            
+            total_questions = 0
+            all_questions = []
+            
+            # 直接处理整个PDF文本
+            yield {
+                "type": "chunk_start",
+                "message": "开始处理整个PDF文本",
+                "chunk_index": 0,
+                "chunk_size": len(pdf_text)
+            }
+            
+            # 估算题目数量
+            chunk_expected = self.estimate_questions_in_text(pdf_text)
+            if expected_questions:
+                chunk_expected = expected_questions
+            
+            # 创建prompt
+            prompt = self.create_question_prompt(pdf_text, chunk_expected)
+
+            # 记录调试信息
+            print("\n" + "="*80)
+            print("📄 PDF文本内容（前500字符）:")
+            print(pdf_text[:500] if len(pdf_text) > 500 else pdf_text)
+            print("...\n")
+
+            print("📝 发送给AI的Prompt（前800字符）:")
+            print(prompt[:800] if len(prompt) > 800 else prompt)
+            print("...\n")
+
+            print("🤖 开始调用AI API...")
+            print("="*80 + "\n")
+
+            # 调用流式API
+            stream_generator = self.call_api_stream(prompt)
+
+            # 解析流式JSON响应
+            chunk_question_count = 0
+            for question in self.parse_streaming_json(stream_generator):
+                chunk_question_count += 1
+                total_questions += 1
+                all_questions.append(question)
+
+                yield {
+                    "type": "question",
+                    "question": question,
+                    "question_index": total_questions - 1,
+                    "chunk_index": 0,
+                    "message": f"✅ 第 {total_questions} 个题目提取完成"
+                }
+
+                # 如果达到预期题目数量，立即停止处理
+                if expected_questions and total_questions >= expected_questions:
+                    print(f"\n✅ 已达到预期题目数量 {expected_questions}，停止解析")
+                    break
+            
+            yield {
+                "type": "chunk_complete",
+                "message": f"整个PDF文本处理完成，提取到 {chunk_question_count} 个题目",
+                "chunk_index": 0,
+                "chunk_questions": chunk_question_count
+            }
+            
+            # 检查题目数量是否达到预期
+            warning_message = ""
+            if expected_questions and total_questions < expected_questions:
+                missing_count = expected_questions - total_questions
+                warning_message = f"⚠️ 警告：预期生成 {expected_questions} 个题目，但只提取到 {total_questions} 个，缺少 {missing_count} 个题目。可能的原因：1) PDF文本中实际题目数量不足；2) LLM输出被截断；3) 部分题目格式识别困难。"
+                yield {
+                    "type": "warning",
+                    "message": warning_message,
+                    "expected": expected_questions,
+                    "actual": total_questions,
+                    "missing": missing_count
+            }
+            
+            # 发送处理完成消息
+            complete_message = f"🎉 处理完成！总共提取到 {total_questions} 个题目"
+            if warning_message:
+                complete_message += f"\n{warning_message}"
+            
+            yield {
+                "type": "process_complete",
+                "message": complete_message,
+                "total_questions": total_questions,
+                "chunk_count": 1,
+                "expected_questions": expected_questions
+            }
+            
+        except Exception as e:
+            yield {
+                "type": "process_error",
+                "error": str(e),
+                "message": f"❌ 处理PDF文本失败: {str(e)}"
+            }
+    
+    async def process_pdf_text_stream_async(self, pdf_text: str, expected_questions: int = None) -> AsyncGenerator[Dict[str, Any], None]:
+        """异步流式处理PDF文本，直接处理整个文本（跳过智能分割）"""
+        try:
+            # 发送开始处理消息
+            yield {
+                "type": "process_start",
+                "message": "开始处理PDF文本（直接处理整个文本）"
+            }
+            
+            # 直接使用整个PDF文本，不进行分割
+            yield {
+                "type": "chunk_info",
+                "message": f"PDF文本长度: {len(pdf_text)} 字符，直接处理整个文本",
+                "chunk_count": 1
+            }
+            
+            total_questions = 0
+            all_questions = []
+            
+            # 直接处理整个PDF文本
+            yield {
+                "type": "chunk_start",
+                "message": "开始处理整个PDF文本",
+                "chunk_index": 0,
+                "chunk_size": len(pdf_text)
+            }
+            
+            # 估算题目数量
+            chunk_expected = self.estimate_questions_in_text(pdf_text)
+            if expected_questions:
+                chunk_expected = expected_questions
+            
+            # 创建prompt
+            prompt = self.create_question_prompt(pdf_text, chunk_expected)
+            
+            # 调用异步流式API
+            stream_generator = self.call_api_stream_async(prompt)
+
+            # 解析流式JSON响应
+            chunk_question_count = 0
+            async for question in self.parse_streaming_json_async(stream_generator):
+                chunk_question_count += 1
+                total_questions += 1
+                all_questions.append(question)
+
+                yield {
+                    "type": "question",
+                    "question": question,
+                    "question_index": total_questions - 1,
+                    "chunk_index": 0,
+                    "message": f"✅ 第 {total_questions} 个题目提取完成"
+                }
+
+                # 如果达到预期题目数量，立即停止处理
+                if expected_questions and total_questions >= expected_questions:
+                    print(f"\n✅ 已达到预期题目数量 {expected_questions}，停止解析")
+                    break
+            
+            yield {
+                "type": "chunk_complete",
+                "message": f"整个PDF文本处理完成，提取到 {chunk_question_count} 个题目",
+                "chunk_index": 0,
+                "chunk_questions": chunk_question_count
+            }
+            
+            # 检查题目数量是否达到预期
+            warning_message = ""
+            if expected_questions and total_questions < expected_questions:
+                missing_count = expected_questions - total_questions
+                warning_message = f"⚠️ 警告：预期生成 {expected_questions} 个题目，但只提取到 {total_questions} 个，缺少 {missing_count} 个题目。可能的原因：1) PDF文本中实际题目数量不足；2) LLM输出被截断；3) 部分题目格式识别困难。"
+                yield {
+                    "type": "warning",
+                    "message": warning_message,
+                    "expected": expected_questions,
+                    "actual": total_questions,
+                    "missing": missing_count
+            }
+            
+            # 发送处理完成消息
+            complete_message = f"🎉 处理完成！总共提取到 {total_questions} 个题目"
+            if warning_message:
+                complete_message += f"\n{warning_message}"
+            
+            yield {
+                "type": "process_complete",
+                "message": complete_message,
+                "total_questions": total_questions,
+                "chunk_count": 1,
+                "expected_questions": expected_questions
+            }
+            
+        except Exception as e:
+            yield {
+                "type": "process_error",
+                "error": str(e),
+                "message": f"❌ 处理PDF文本失败: {str(e)}"
+            }
+
+    def extract_questions_in_batches(
+        self,
+        pdf_text: str,
+        expected_questions: int = None,
+        batch_size: int = 5
+    ) -> Generator[Dict[str, Any], None, None]:
+        """
+        分批提取题目，确保每批都成功
+        
+        Args:
+            pdf_text: PDF文本
+            expected_questions: 预期题目数量
+            batch_size: 每批处理题目数（默认5）
+        """
+        try:
+            # 发送开始处理消息
+            yield {
+                "type": "process_start",
+                "message": "开始分批处理PDF文本"
+            }
+            
+            # 估算总题目数
+            total_estimated = self.estimate_questions_in_text(pdf_text)
+            if expected_questions:
+                total_estimated = expected_questions
+            
+            print(f"\n📊 预估题目总数: {total_estimated}, 每批处理: {batch_size}题\n")
+            
+            # 智能分割PDF文本
+            chunks = self.split_pdf_text_intelligently(
+                pdf_text,
+                max_chunk_size=3000  # 每块约3-5题
+            )
+            
+            # 发送块信息
+            yield {
+                "type": "chunk_info",
+                "message": f"PDF文本分为 {len(chunks)} 个批次处理",
+                "chunk_count": len(chunks),
+                "batch_size": batch_size
+            }
+            
+            total_questions = 0
+            all_questions = []
+            
+            # 分批处理
+            for chunk_index, chunk in enumerate(chunks):
+                # 计算本批预期题目数
+                remaining = total_estimated - total_questions
+                batch_expected = min(batch_size, remaining)
+                
+                # 如果已达到预期数量，停止
+                if expected_questions and total_questions >= expected_questions:
+                    break
+                
+                # 发送批开始消息
+                yield {
+                    "type": "chunk_start",
+                    "message": f"开始处理第 {chunk_index + 1}/{len(chunks)} 批（预期{batch_expected}题）",
+                    "chunk_index": chunk_index,
+                    "chunk_size": len(chunk),
+                    "progress": f"{chunk_index + 1}/{len(chunks)}"
+                }
+                
+                print(f"\n{'='*80}")
+                print(f"📦 批次 {chunk_index + 1}/{len(chunks)}")
+                print(f"   文本长度: {len(chunk)} 字符")
+                print(f"   预期题目: {batch_expected} 题")
+                print(f"{'='*80}\n")
+
+                # 第一批后添加延迟，避免速率限制
+                if chunk_index > 0:
+                    import time
+                    delay = 2  # 2秒延迟
+                    print(f"⏳ 等待 {delay} 秒后处理下一批（避免速率限制）...")
+                    time.sleep(delay)
+
+                # 创建批次prompt
+                prompt = self._create_batch_prompt(chunk, batch_expected)
+
+                print(f"🤖 调用AI处理批次 {chunk_index + 1}...")
+
+                # 调用API提取本批题目（带重试）
+                max_retries = 3
+                stream_generator = None
+
+                for retry in range(max_retries):
+                    try:
+                        stream_generator = self.call_api_stream(prompt)
+                        break  # 成功，跳出重试循环
+                    except Exception as e:
+                        if retry < max_retries - 1:
+                            wait_time = (retry + 1) * 3  # 3, 6, 9秒
+                            print(f"⚠️ API调用失败（第{retry + 1}次尝试）: {str(e)}")
+                            print(f"⏳ 等待 {wait_time} 秒后重试...")
+                            import time
+                            time.sleep(wait_time)
+                        else:
+                            raise e  # 最后一次重试也失败，抛出异常
+                
+                # 解析并返回题目
+                batch_question_count = 0
+                for question in self.parse_streaming_json(stream_generator):
+                    batch_question_count += 1
+                    total_questions += 1
+                    all_questions.append(question)
+                    
+                    yield {
+                        "type": "question",
+                        "question": question,
+                        "question_index": total_questions - 1,
+                        "chunk_index": chunk_index,
+                        "message": f"✅ 第 {total_questions} 个题目提取完成"
+                    }
+                    
+                    # 达到预期数量立即停止
+                    if expected_questions and total_questions >= expected_questions:
+                        print(f"\n✅ 已达到预期题目数量 {expected_questions}，停止解析")
+                        break
+                
+                # 发送批完成消息
+                yield {
+                    "type": "chunk_complete",
+                    "message": f"第 {chunk_index + 1} 批处理完成，提取到 {batch_question_count} 个题目",
+                    "chunk_index": chunk_index,
+                    "chunk_questions": batch_question_count
+                }
+                
+                print(f"✅ 批次 {chunk_index + 1} 完成，提取了 {batch_question_count} 道题")
+                
+                # 如果已达到预期数量，停止处理后续批次
+                if expected_questions and total_questions >= expected_questions:
+                    break
+            
+            # 检查题目数量是否达到预期
+            warning_message = ""
+            if expected_questions and total_questions < expected_questions:
+                missing_count = expected_questions - total_questions
+                warning_message = f"⚠️ 警告：预期 {expected_questions} 题，实际提取 {total_questions} 题，缺少 {missing_count} 题"
+                yield {
+                    "type": "warning",
+                    "message": warning_message,
+                    "expected": expected_questions,
+                    "actual": total_questions,
+                    "missing": missing_count
+                }
+            
+            # 发送完成消息
+            complete_message = f"🎉 分批处理完成！总共提取到 {total_questions} 个题目"
+            if warning_message:
+                complete_message += f"\n{warning_message}"
+            
+            yield {
+                "type": "process_complete",
+                "message": complete_message,
+                "total_questions": total_questions,
+                "chunk_count": len(chunks),
+                "expected_questions": expected_questions
+            }
+            
+        except Exception as e:
+            yield {
+                "type": "process_error",
+                "error": str(e),
+                "message": f"❌ 分批处理失败: {str(e)}"
+            }
+    
+    def _create_batch_prompt(self, chunk_text: str, expected_count: int) -> str:
+        """
+        创建批次提取的prompt
+        
+        Args:
+            chunk_text: 本批次的文本
+            expected_count: 本批次预期题目数
+        """
+        calibration_text = f"""
+
+⚠️⚠️⚠️ 极其重要的要求 ⚠️⚠️⚠️：
+- 本次批次必须提取恰好 {expected_count} 个题目
+- 提取满 {expected_count} 个题目后立即停止
+- 只需要提取本批次文本中的前 {expected_count} 个题目"""
+        
+        return f"""请将以下PDF文本中的题目转换为标准JSON格式。
+
+⚠️ 输出要求：直接输出JSON格式，不要输出任何思考过程、分析步骤、前言或后语。每个题目必须以单个 '{{' 开始，而不是 '{{{{'。
+
+要求：
+1. 分question_type两类题目：code和text
+2. 如果题目有代码，则是code类型，反之text
+3. 如果是code类型，则有question_code字段，如果是text类型，则question_code是空字符串
+4. 每个题目包含：question_text, question_type, question_code, correct_answer, explanation, level, difficulty, options
+5. level表示难度等级（1-5），difficulty表示难度描述（easy/medium/hard）{calibration_text}
+
+重要格式要求：
+- 每个题目之间用 "---QUESTION_SEPARATOR---" 分隔
+- 每完成一个题目就立即输出，不要等待所有题目完成
+- 严格按照JSON格式输出每个题目（单层花括号）
+
+代码处理要求：
+- 对于code类型的题目，question_code字段中的代码需要：
+  1. 移除行号（如"1 cin >> a;" → "cin >> a;"）
+  2. 添加正确的缩进（根据代码结构添加适当的空格或制表符）
+  3. 保持代码的完整性和可读性
+  4. 确保代码语法正确
+
+题目文本处理要求：
+- question_text字段中不要包含题目编号（如"第1题"、"第2题"等）
+- 只保留题目的实际内容，去除编号前缀
+- 保持题目的完整性和清晰度
+
+PDF文本（本批次）：
+{chunk_text}
+
+请按照以下格式输出（注意：使用单层花括号）:
+{{
+  "question_text": "题目文本（不包含题目编号）",
+  "question_type": "code或text",
+  "question_code": "代码内容（移除行号，添加正确缩进）或空字符串",
+  "correct_answer": "正确答案标签",
+  "explanation": "解释说明",
+  "level": 难度等级,
+  "difficulty": "难度描述",
+  "options": [
+    {{"label": "A", "value": "A", "text": "选项内容"}},
+    {{"label": "B", "value": "B", "text": "选项内容"}},
+    {{"label": "C", "value": "C", "text": "选项内容"}},
+    {{"label": "D", "value": "D", "text": "选项内容"}}
+  ]
+}}
+---QUESTION_SEPARATOR---
+
+⚠️ 重要：输出完上述 {expected_count} 个题目后立即停止，不要再输出更多题目！
+"""

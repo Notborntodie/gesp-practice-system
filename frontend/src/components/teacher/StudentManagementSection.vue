@@ -106,10 +106,6 @@
               </td>
               <td>
                 <div class="action-buttons" @click.stop>
-                  <button @click="$emit('view-plan-progress', student)" class="btn-action btn-view-plan" title="查看计划完成">
-                    <Icon name="book-open" :size="16" />
-                    <span>查看计划完成</span>
-                  </button>
                   <button @click="$emit('manage-plans', student)" class="btn-action btn-manage-plans" title="增加/删除计划">
                     <Icon name="settings" :size="16" />
                     <span>增加/删除计划</span>
@@ -647,4 +643,3 @@ function exportFilteredStudents() {
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
 }
 </style>
-

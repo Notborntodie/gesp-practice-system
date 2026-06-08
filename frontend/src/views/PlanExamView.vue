@@ -338,6 +338,14 @@
               <Icon name="trending-up" :size="18" /> 需要努力！建议多练习相关知识点。
             </p>
           </div>
+
+          <div v-if="submitResult?.growth_pet_reward?.awarded" class="growth-reward-banner">
+            <Icon name="sparkles" :size="20" />
+            <div>
+              <strong>成长精灵 +{{ submitResult.growth_pet_reward.points }} 积分</strong>
+              <span>客观题分数越高，成长积分越多。</span>
+            </div>
+          </div>
         </div>
         <div class="submit-result-footer">
           <button @click="goBackToLevelExams" class="btn btn-primary">
@@ -920,6 +928,9 @@
           
           const result = await response.json();
           console.log('提交结果:', result);
+          if (result.growth_pet_reward?.awarded) {
+            window.dispatchEvent(new CustomEvent('growth-pet-refresh'));
+          }
           
           // 更新今天的提交次数
           if (this.taskId && this.EXAM_ID) {
@@ -3809,6 +3820,29 @@
     background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
     border: 1px solid #fee2e2;
     color: #ef4444;
+  }
+
+  .growth-reward-banner {
+    margin-top: 14px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid #bbf7d0;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #ecfdf5 0%, #eff6ff 100%);
+    color: #14532d;
+  }
+
+  .growth-reward-banner strong,
+  .growth-reward-banner span {
+    display: block;
+  }
+
+  .growth-reward-banner span {
+    margin-top: 3px;
+    color: #64748b;
+    font-size: 13px;
   }
   
   .submit-result-footer {

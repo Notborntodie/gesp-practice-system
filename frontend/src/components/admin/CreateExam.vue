@@ -116,11 +116,11 @@
               </select>
             </div>
             <div class="filter-dropdown">
-              <input 
-                type="month" 
-                v-model="dateFilter" 
-                class="filter-select"
+              <AppMonthSelect
+                v-model="dateFilter"
+                :available-months="availableMonthValues"
                 placeholder="按日期筛选"
+                full-width
               />
             </div>
             <div class="batch-actions">
@@ -256,6 +256,7 @@
 
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import AppMonthSelect from '@/components/ui/AppMonthSelect.vue'
 import axios from 'axios'
 import SuccessMessageDialog from './Dialog/SuccessMessageDialog.vue'
 
@@ -285,6 +286,8 @@ const questionFilter = ref('')
 const difficultyFilter = ref('')
 const dateFilter = ref('')
 const loading = ref(false)
+
+const availableMonthValues = computed(() => availableQuestions.value.map((question: any) => question.question_date))
 
 // 状态数据
 const creating = ref(false)
@@ -753,23 +756,6 @@ onMounted(() => {
 }
 
 .filter-select:focus {
-  outline: none;
-  border-color: #1e90ff;
-  box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.2);
-}
-
-.filter-dropdown input[type="month"] {
-  width: 100%;
-  padding: 10px 16px;
-  border: 1.5px solid #b6e0fe;
-  border-radius: 8px;
-  font-size: 14px;
-  background: white;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.filter-dropdown input[type="month"]:focus {
   outline: none;
   border-color: #1e90ff;
   box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.2);

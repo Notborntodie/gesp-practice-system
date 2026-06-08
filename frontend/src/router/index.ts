@@ -11,6 +11,7 @@ import PlanExamView from '../views/PlanExamView.vue'
 import AdminView from '../views/AdminView.vue'
 import AdminLayout from '../views/AdminLayout.vue'
 import TeacherView from '../views/TeacherView.vue'
+import TeacherLayout from '../views/TeacherLayout.vue'
 import LevelExamsView from '../views/LevelExamsView.vue'
 import ExamSubmissionsView from '../views/ExamSubmissionsView.vue'
 import StudentSubmissionsView from '../views/StudentSubmissionsView.vue'
@@ -37,6 +38,8 @@ import LeaningPlanManagement from '../components/admin/LeaningPlanManagement.vue
 import AdminTestManagementSection from '../components/admin/AdminTestManagementSection.vue'
 import UserManagement from '../components/admin/UserManagement.vue'
 import PlanEditorView from '../components/admin/PlanEditorView.vue'
+import ObjectiveSubmissionsSection from '../components/teacher/ObjectiveSubmissionsSection.vue'
+import OJSubmissionsSection from '../components/teacher/OJSubmissionsSection.vue'
 
 const routes = [
   { path: '/login', component: LoginView },
@@ -47,6 +50,7 @@ const routes = [
   { path: '/plan/submissions', component: PlanView },
   { path: '/plan/ranking', component: PlanView },
   { path: '/plan/tests', component: PlanView },
+  { path: '/plan/growth-pets', component: PlanView },
   { path: '/tests/:testId', component: TestDetailView },
   { path: '/public-tests/:token', component: () => import('../views/PublicTestResultView.vue') },
   { path: '/public-plans/:token', component: () => import('../views/PublicPlanProgressView.vue') },
@@ -81,6 +85,7 @@ const routes = [
     children: [
       { path: 'upload', name: 'AdminUpload', component: QuestionUpload },
       { path: 'batch-upload', name: 'AdminBatchUpload', component: () => import('../components/admin/BatchUploadView.vue') },
+      { path: 'exam-batch-upload', name: 'AdminExamBatchUpload', component: () => import('../components/admin/ExamBatchUploadView.vue') },
       { path: 'knowledge-points', name: 'AdminKnowledgePoints', component: KnowledgePointManagement },
       { path: 'questions', name: 'AdminQuestions', component: QuestionList },
       { path: 'question-editor/:id', name: 'AdminQuestionEditor', component: () => import('../components/admin/QuestionEditorView.vue') },
@@ -104,7 +109,23 @@ const routes = [
     ]
   },
 
-  { path: '/teacher', component: TeacherView },
+  { path: '/teacher-old', component: TeacherView },
+  {
+    path: '/teacher',
+    component: TeacherLayout,
+    redirect: '/teacher/students',
+    children: [
+      { path: 'students', name: 'TeacherStudents', component: () => import('../views/teacher/StudentManagementView.vue') },
+      { path: 'students/:studentId', name: 'TeacherStudentDetail', component: () => import('../views/teacher/StudentProgressDetailView.vue') },
+      { path: 'plan-progress', name: 'TeacherPlanProgress', component: () => import('../views/teacher/TeacherPlanProgressView.vue') },
+      { path: 'plan-progress/:planId/tasks/:taskId', name: 'TeacherTaskProgress', component: () => import('../views/teacher/TeacherTaskProgressView.vue') },
+      { path: 'plan-assignment', name: 'TeacherPlanAssignment', component: () => import('../views/teacher/PlanAssignmentView.vue') },
+      { path: 'objective-submissions', name: 'TeacherObjectiveSubmissions', component: ObjectiveSubmissionsSection },
+      { path: 'oj-submissions', name: 'TeacherOJSubmissions', component: OJSubmissionsSection },
+      { path: 'tests', name: 'TeacherTests', component: AdminTestManagementSection },
+      { path: 'test-editor', name: 'TeacherTestEditor', component: () => import('../components/admin/TestEditorView.vue') },
+    ]
+  },
   { path: '/teacher/:teacherId/student/:studentId/plan-progress', component: StudentPlanProgressView },
   { path: '/feynman-summary', component: FeynmanSummaryView },
   { path: '/animation/:id', component: AnimationView },

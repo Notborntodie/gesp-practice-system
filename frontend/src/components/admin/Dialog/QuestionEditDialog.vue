@@ -52,10 +52,10 @@
                 </div>
                 <div class="form-group">
                   <label>题目日期：</label>
-                  <input 
-                    type="month" 
-                    v-model="editForm.question_date" 
+                  <AppMonthSelect
+                    v-model="editForm.question_date"
                     placeholder="选择年月"
+                    full-width
                   />
                 </div>
               </div>
@@ -164,6 +164,7 @@
 import { ref, watch, onMounted } from 'vue'
 import axios from 'axios'
 import { useQuestionTypeStore } from '@/stores/questionTypeStore'
+import AppMonthSelect from '@/components/ui/AppMonthSelect.vue'
 
 const questionTypeStore = useQuestionTypeStore()
 const { allQuestionTypes, fetchQuestionTypes } = questionTypeStore

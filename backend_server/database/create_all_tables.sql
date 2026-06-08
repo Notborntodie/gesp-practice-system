@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS `knowledge_points` (
 -- 3.1 题目表
 CREATE TABLE IF NOT EXISTS `questions` (
   `id` int NOT NULL AUTO_INCREMENT,
+  `public_id` varchar(64) DEFAULT NULL COMMENT '题目可见检索编号',
   `question_text` text NOT NULL,
   `question_type` enum('text','code') DEFAULT 'text',
   `question_code` text,
@@ -142,6 +143,7 @@ CREATE TABLE IF NOT EXISTS `questions` (
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_questions_public_id` (`public_id`),
   KEY `idx_questions_level` (`level`),
   KEY `idx_questions_date` (`question_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='题目表';
@@ -608,4 +610,3 @@ ALTER TABLE `oj_submissions`
 -- ================================================================
 -- 建表脚本完成
 -- ================================================================
-

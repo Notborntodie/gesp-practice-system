@@ -44,7 +44,7 @@
               <AppInput v-model.number="form.memory_limit" type="number" />
             </AppFormField>
             <AppFormField label="发布日期">
-              <AppInput v-model="form.publish_date" type="month" />
+              <AppMonthSelect v-model="form.publish_date" full-width />
             </AppFormField>
           </div>
 
@@ -199,6 +199,7 @@ import type { Ref } from 'vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
+import AppMonthSelect from '@/components/ui/AppMonthSelect.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
 import AppFormField from '@/components/ui/AppFormField.vue'
 import AppDialog from '@/components/ui/AppDialog.vue'

@@ -215,6 +215,12 @@ function openBatchUpload() {
 }
 provide('openBatchUpload', openBatchUpload)
 
+// === 上传练习 ===
+function openExamBatchUpload() {
+  router.push('/admin/exam-batch-upload')
+}
+provide('openExamBatchUpload', openExamBatchUpload)
+
 // === 题目编辑 ===
 function openQuestionEditor(questionId: number) {
   router.push(`/admin/question-editor/${questionId}`)
@@ -283,9 +289,24 @@ provide('questionEditorQuestionId', questionEditorQuestionId)
 
     <!-- Main Content -->
     <main class="admin-main">
-      <router-view v-slot="{ Component }">
+      <router-view v-slot="{ Component, route: currentRoute }">
+        <!-- 列表页使用固定key，确保缓存；编辑页和详情页使用完整路径 -->
         <KeepAlive :max="5">
-          <component :is="Component" :key="$route.fullPath" />
+          <component
+            :is="Component"
+            :key="
+              currentRoute.path === '/admin/upload' ? 'admin-upload' :
+              currentRoute.path === '/admin/knowledge-points' ? 'admin-knowledge-points' :
+              currentRoute.path === '/admin/questions' ? 'admin-questions' :
+              currentRoute.path === '/admin/exams' ? 'admin-exams' :
+              currentRoute.path === '/admin/exam-batch-upload' ? 'admin-exam-batch-upload' :
+              currentRoute.path === '/admin/oj' ? 'admin-oj' :
+              currentRoute.path === '/admin/plans' ? 'admin-plans' :
+              currentRoute.path === '/admin/tests' ? 'admin-tests' :
+              currentRoute.path === '/admin/users' ? 'admin-users' :
+              currentRoute.fullPath
+            "
+          />
         </KeepAlive>
       </router-view>
     </main>

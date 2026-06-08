@@ -4,6 +4,36 @@ const { pool, getValidCategories } = require('../config/database');
 const { cacheMiddleware, cacheUtils } = require('../config/cache');
 const { logger } = require('../config/logger');
 
+// 重新计算指定题目的 exam_count 和 exam_summary 冗余字段
+async function refreshQuestionExamSummary(questionIds, connection) {
+  if (!questionIds || questionIds.length === 0) return;
+  const conn = connection || await pool.getConnection();
+  const shouldRelease = !connection;
+  try {
+    for (const qid of questionIds) {
+      const [rows] = await conn.execute(`
+        SELECT eq.exam_id, eq.question_number AS qno, e.name
+        FROM exam_questions eq
+        JOIN exams e ON e.id = eq.exam_id
+        WHERE eq.question_id = ?
+        ORDER BY eq.exam_id
+      `, [qid]);
+
+      const examCount = rows.length;
+      const examSummary = rows.length > 0
+        ? JSON.stringify(rows.map(r => ({ exam_id: r.exam_id, name: r.name, qno: r.qno })))
+        : null;
+
+      await conn.execute(
+        'UPDATE questions SET exam_count = ?, exam_summary = ? WHERE id = ?',
+        [examCount, examSummary, qid]
+      );
+    }
+  } finally {
+    if (shouldRelease) conn.release();
+  }
+}
+
 // 获取考试信息（带缓存）
 router.get('/exam/:examId', cacheMiddleware(600, 'exam'), async (req, res) => {
   try {
@@ -211,12 +241,16 @@ router.post('/exams', async (req, res) => {
       }
       
       await connection.commit();
-      
+
       // 清除相关缓存
       await cacheUtils.exam.clearExamList();
       await cacheUtils.exam.clearExam(examId);
-      
-      res.json({ 
+
+      // 更新受影响题目的 exam_count/exam_summary
+      const affectedQids = question_ids.map(q => typeof q === 'object' ? q.id : q);
+      await refreshQuestionExamSummary(affectedQids, connection);
+
+      res.json({
         message: '考试创建成功',
         examId: examId,
         questionCount: question_ids.length
@@ -326,7 +360,14 @@ router.put('/exams/:examId', async (req, res) => {
       }
       
       // 更新题目关联
+      let oldQids = [];
       if (Array.isArray(question_ids)) {
+        // 获取旧的题目ID（删除前记录，用于后续刷新冗余字段）
+        const [oldRows] = await connection.execute(
+          'SELECT question_id FROM exam_questions WHERE exam_id = ?', [examId]
+        );
+        oldQids = oldRows.map(r => r.question_id);
+
         // 删除现有的题目关联
         await connection.execute('DELETE FROM exam_questions WHERE exam_id = ?', [examId]);
         
@@ -373,11 +414,16 @@ router.put('/exams/:examId', async (req, res) => {
       }
       
       await connection.commit();
-      
+
       // 清除相关缓存
       await cacheUtils.exam.clearExamList();
       await cacheUtils.exam.clearExam(examId);
-      
+
+      // 更新受影响题目的 exam_count/exam_summary（旧题 + 新题）
+      const newQids = Array.isArray(question_ids) ? question_ids.map(q => typeof q === 'object' ? q.id : q) : [];
+      const allAffectedQids = [...new Set([...oldQids, ...newQids])];
+      await refreshQuestionExamSummary(allAffectedQids, connection);
+
       res.json({ message: '考试更新成功' });
       
     } catch (error) {
@@ -414,16 +460,25 @@ router.delete('/exams/:examId', async (req, res) => {
       if (examExists.length === 0) {
         throw new Error('考试不存在');
       }
-      
+
+      // 获取该考试关联的题目ID（删除前记录，用于后续刷新冗余字段）
+      const [affectedRows] = await connection.execute(
+        'SELECT question_id FROM exam_questions WHERE exam_id = ?', [examId]
+      );
+      const affectedQids = affectedRows.map(r => r.question_id);
+
       // 删除考试（会自动删除相关的exam_questions记录，因为设置了CASCADE）
       await connection.execute('DELETE FROM exams WHERE id = ?', [examId]);
-      
+
       await connection.commit();
-      
+
       // 清除相关缓存
       await cacheUtils.exam.clearExamList();
       await cacheUtils.exam.clearExam(examId);
-      
+
+      // 更新受影响题目的 exam_count/exam_summary
+      await refreshQuestionExamSummary(affectedQids, connection);
+
       res.json({ message: '考试删除成功' });
       
     } catch (error) {
@@ -447,43 +502,71 @@ router.get('/available-questions', cacheMiddleware(300, 'available-questions'), 
   try {
     const { level, difficulty, category, exam_id } = req.query;
     const connection = await pool.getConnection();
-    
-    let sql = `
-      SELECT q.*, 
-             GROUP_CONCAT(DISTINCT kp.name ORDER BY kp.name SEPARATOR ', ') as knowledge_points
-      FROM questions q
-      LEFT JOIN question_knowledge_points qkp ON q.id = qkp.question_id
-      LEFT JOIN knowledge_points kp ON qkp.knowledge_point_id = kp.id
-      WHERE 1=1
-    `;
+
+    // 先查题目基本信息（不 JOIN 知识点，避免 GROUP BY 导致的性能和格式问题）
+    let sql = 'SELECT q.* FROM questions q WHERE 1=1';
     const params = [];
-    
+
     if (level) {
       sql += ' AND q.level = ?';
       params.push(level);
     }
-    
+
     if (difficulty) {
       sql += ' AND q.difficulty = ?';
       params.push(difficulty);
     }
-    
+
     if (category) {
-      sql += ' AND kp.category = ?';
+      sql += ' AND q.category = ?';
       params.push(category);
     }
-    
+
     // 如果指定了exam_id，排除已经在此考试中的题目
     if (exam_id) {
       sql += ' AND q.id NOT IN (SELECT question_id FROM exam_questions WHERE exam_id = ?)';
       params.push(exam_id);
     }
-    
-    sql += ' GROUP BY q.id ORDER BY q.created_at DESC';
-    
+
+    sql += ' ORDER BY q.created_at DESC';
+
     const [results] = await connection.execute(sql, params);
+
+    // 批量获取所有题目的知识点关联，组装为数组对象格式
+    if (results.length > 0) {
+      const questionIds = results.map(r => r.id);
+      const placeholders = questionIds.map(() => '?').join(',');
+      const [kpRows] = await connection.execute(
+        `SELECT qkp.question_id, kp.id as knowledge_point_id, kp.name, kp.category, kp.level
+         FROM question_knowledge_points qkp
+         JOIN knowledge_points kp ON qkp.knowledge_point_id = kp.id
+         WHERE qkp.question_id IN (${placeholders})`,
+        questionIds
+      );
+
+      // 按 question_id 分组
+      const kpMap = new Map();
+      for (const row of kpRows) {
+        if (!kpMap.has(row.question_id)) {
+          kpMap.set(row.question_id, []);
+        }
+        kpMap.get(row.question_id).push({
+          id: row.knowledge_point_id,
+          knowledge_point_id: row.knowledge_point_id,
+          name: row.name,
+          category: row.category,
+          level: row.level
+        });
+      }
+
+      // 将知识点数组附加到每道题
+      for (const q of results) {
+        q.knowledge_points = kpMap.get(q.id) || [];
+      }
+    }
+
     connection.release();
-    
+
     res.json(results);
   } catch (error) {
     logger.error('获取可用题目错误', { error: error.message });

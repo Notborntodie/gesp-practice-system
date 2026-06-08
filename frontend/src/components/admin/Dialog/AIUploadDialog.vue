@@ -68,11 +68,11 @@
             
             <div class="param-group">
               <label>日期:</label>
-              <input 
-                type="month" 
-                v-model="presetQuestionDate" 
-                class="param-input"
-              >
+              <AppMonthSelect
+                v-model="presetQuestionDate"
+                size="sm"
+                full-width
+              />
             </div>
           </div>
           
@@ -355,10 +355,10 @@
                     </div>
                     <div class="form-group">
                       <label>题目日期：</label>
-                      <input 
-                        type="month" 
-                        v-model="currentQuestion.question_date" 
+                      <AppMonthSelect
+                        v-model="currentQuestion.question_date"
                         placeholder="选择年月"
+                        full-width
                       />
                     </div>
                   </div>
@@ -624,6 +624,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import axios from 'axios'
 import SuccessMessageDialog from './SuccessMessageDialog.vue'
 import { useQuestionTypeStore } from '@/stores/questionTypeStore'
+import AppMonthSelect from '@/components/ui/AppMonthSelect.vue'
 
 interface Props {
   visible: boolean

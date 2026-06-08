@@ -75,19 +75,19 @@
     </div>
 
     <!-- QR Code Dialog -->
-    <div v-if="qrTest" class="modal-overlay" @click="qrTest = null">
-      <div class="modal-card" @click.stop>
-        <div class="modal-header">
-          <h4>{{ qrTest.name }}</h4>
-          <span class="modal-subtitle">成绩查询链接</span>
-          <button type="button" class="modal-close" @click="qrTest = null">×</button>
-        </div>
-        <div class="modal-body">
+    <AppDialog
+      v-model:show="qrTest"
+      :title="qrTest?.name || '成绩查询'"
+      width="420"
+      :show-footer="true"
+    >
+      <template #default>
+        <div class="qr-content">
           <div class="qr-block">
             <p class="qr-hint">学员微信扫一扫即可打开查分页</p>
             <div class="qr-canvas-wrap">
               <img
-                v-if="publicResultUrl"
+                v-if="publicResultUrl && qrTest"
                 :src="qrCodeImageUrl"
                 alt="查分二维码"
                 class="qr-image"
@@ -98,87 +98,86 @@
             <p class="url-label">或复制链接发给学员</p>
             <div class="url-box">
               <input :value="publicResultUrl" readonly class="url-input" />
-              <button type="button" class="btn-copy" :class="{ copied: copySuccess }" @click="copyUrl">
+              <AppButton variant="primary" size="sm" @click="copyUrl">
                 {{ copySuccess ? '已复制' : '复制' }}
-              </button>
+              </AppButton>
             </div>
             <p class="tip">打开链接后输入姓名或用户名可查个人成绩与排名</p>
           </div>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn-close" @click="qrTest = null">关闭</button>
-        </div>
-      </div>
-    </div>
+      </template>
+      <template #footer>
+        <AppButton variant="secondary" @click="qrTest = null">关闭</AppButton>
+      </template>
+    </AppDialog>
 
     <!-- Ranking Dialog -->
-    <div v-if="rankingTest" class="modal-overlay modal-ranking-overlay" @click="closeRanking">
-      <div class="modal-card modal-ranking-card" @click.stop>
-        <div class="modal-ranking-header">
-          <h4>测试排名 · {{ rankingTest.name }}</h4>
-          <button type="button" class="modal-close" @click="closeRanking">×</button>
+    <AppDialog
+      v-model:show="rankingTest"
+      :title="`测试排名 · ${rankingTest?.name || ''}`"
+      width="720"
+      :show-footer="false"
+    >
+      <template #default>
+        <div class="ranking-content">
+          <div class="ranking-controls">
+            <div v-if="teacherOnly" class="teacher-filter-toggle">
+              <label class="filter-toggle-label">
+                <input type="checkbox" v-model="showOnlyMyStudents" @change="fetchRankings" class="filter-checkbox" />
+                <span>只看我的学生</span>
+              </label>
+            </div>
+            <div class="ranking-search-box">
+              <input
+                v-model="rankingSearchKeyword"
+                type="text"
+                placeholder="搜索姓名、用户名..."
+                class="ranking-search-input"
+              />
+            </div>
+          </div>
+          <div class="ranking-body">
+            <AppEmptyState v-if="rankingLoading" type="loading" description="加载排名中..." />
+            <AppEmptyState v-else-if="rankingError" type="empty" :description="rankingError" />
+            <AppEmptyState v-else-if="filteredRankingList.length === 0" type="empty" description="暂无排名数据" />
+            <div v-else class="ranking-table-wrap">
+              <table class="ranking-table">
+                <thead>
+                  <tr>
+                    <th>排名</th>
+                    <th>姓名</th>
+                    <th>总分</th>
+                    <th>客观题</th>
+                    <th>编程题</th>
+                    <th>交卷时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in filteredRankingList" :key="row.user_id" :class="{ 'top-three': row.rank <= 3 }">
+                    <td>{{ row.rank }}</td>
+                    <td>{{ row.real_name || row.username || '—' }}</td>
+                    <td>{{ formatScore(row.total_score) }}</td>
+                    <td>{{ formatScore(row.exam_score) }}</td>
+                    <td>{{ formatScore(row.oj_score) }}</td>
+                    <td>{{ formatRankingTime(row.submitted_at) }}</td>
+                    <td>
+                      <AppButton variant="ghost" size="sm" @click="resetAttemptForStudent(row)">
+                        重新开启
+                      </AppButton>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p class="ranking-total">共 {{ rankingTotal }} 人已交卷</p>
+            </div>
+          </div>
+          <div class="ranking-footer">
+            <AppButton variant="secondary" @click="closeRanking">关闭</AppButton>
+          </div>
         </div>
-        <div class="modal-ranking-controls">
-          <div v-if="teacherOnly" class="teacher-filter-toggle">
-            <label class="filter-toggle-label">
-              <input type="checkbox" v-model="showOnlyMyStudents" @change="fetchRankings" class="filter-checkbox" />
-              <span>只看我的学生</span>
-            </label>
-          </div>
-          <div class="ranking-search-box">
-            <input
-              v-model="rankingSearchKeyword"
-              type="text"
-              placeholder="搜索姓名、用户名..."
-              class="ranking-search-input"
-            />
-          </div>
-        </div>
-        <div class="modal-ranking-body">
-          <div v-if="rankingLoading" class="ranking-loading">
-            <div class="loading-spinner"></div>
-            <p>加载排名中...</p>
-          </div>
-          <div v-else-if="rankingError" class="ranking-error">
-            <p>{{ rankingError }}</p>
-          </div>
-          <div v-else-if="filteredRankingList.length === 0" class="ranking-empty">
-            <p>暂无排名数据</p>
-          </div>
-          <div v-else class="ranking-table-wrap">
-            <table class="ranking-table">
-              <thead>
-                <tr>
-                  <th>排名</th>
-                  <th>姓名</th>
-                  <th>总分</th>
-                  <th>客观题</th>
-                  <th>编程题</th>
-                  <th>交卷时间</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="row in filteredRankingList" :key="row.user_id" :class="{ 'top-three': row.rank <= 3 }">
-                  <td>{{ row.rank }}</td>
-                  <td>{{ row.real_name || row.username || '—' }}</td>
-                  <td>{{ formatScore(row.total_score) }}</td>
-                  <td>{{ formatScore(row.exam_score) }}</td>
-                  <td>{{ formatScore(row.oj_score) }}</td>
-                  <td>{{ formatRankingTime(row.submitted_at) }}</td>
-                  <td>
-                    <AppButton variant="ghost" size="sm" @click="resetAttemptForStudent(row)">
-                      重新开启
-                    </AppButton>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <p class="ranking-total">共 {{ rankingTotal }} 人已交卷</p>
-          </div>
-        </div>
-      </div>
-    </div>
+      </template>
+    </AppDialog>
 
     <!-- Delete Confirm Dialog -->
     <AppDialog
@@ -474,6 +473,22 @@ onMounted(() => load())
 </script>
 
 <style scoped>
+/* Page Header Override for Teacher View */
+.app-page-header {
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  margin-bottom: var(--space-4);
+}
+
+.page-title {
+  font-size: var(--font-size-xl);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 /* Table */
 .test-table-container {
   background: var(--color-surface);
@@ -644,68 +659,15 @@ onMounted(() => load())
   background: var(--color-muted);
 }
 
-/* QR Modal */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+/* QR Content */
+.qr-content {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: var(--space-4);
-}
-
-.modal-card {
-  background: var(--color-surface);
-  border-radius: var(--radius-lg);
-  max-width: 420px;
-  width: 90%;
-  box-shadow: var(--shadow-xl);
-  overflow: hidden;
-}
-
-.modal-header {
-  position: relative;
-  padding: var(--space-4);
-  background: var(--color-muted);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.modal-header h4 {
-  margin: 0 0 var(--space-1);
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--color-foreground);
-}
-
-.modal-subtitle {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-}
-
-.modal-close {
-  position: absolute;
-  top: var(--space-3);
-  right: var(--space-3);
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-  font-size: 1.5rem;
-  line-height: 1;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-}
-
-.modal-body {
-  padding: var(--space-5);
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 .qr-block {
   text-align: center;
-  margin-bottom: var(--space-5);
 }
 
 .qr-hint {
@@ -717,7 +679,7 @@ onMounted(() => load())
 .qr-canvas-wrap {
   display: inline-flex;
   padding: var(--space-3);
-  background: var(--color-surface);
+  background: var(--color-background);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
@@ -728,8 +690,14 @@ onMounted(() => load())
   height: 200px;
 }
 
-.url-block .url-label {
-  margin: 0 0 var(--space-2);
+.url-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.url-label {
+  margin: 0;
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
 }
@@ -737,34 +705,15 @@ onMounted(() => load())
 .url-box {
   display: flex;
   gap: var(--space-2);
-  margin-bottom: var(--space-2);
 }
 
 .url-input {
   flex: 1;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-sm);
   background: var(--color-muted);
-}
-
-.btn-copy {
-  padding: var(--space-2) var(--space-3);
-  background: var(--color-primary);
-  color: white;
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-weight: 500;
-}
-
-.btn-copy:hover {
-  background: var(--color-secondary);
-}
-
-.btn-copy.copied {
-  background: var(--color-accent);
 }
 
 .tip {
@@ -773,55 +722,17 @@ onMounted(() => load())
   color: var(--color-text-muted);
 }
 
-.modal-footer {
-  padding: var(--space-3) var(--space-4);
-  border-top: 1px solid var(--color-border);
-  text-align: center;
-}
-
-.btn-close {
-  padding: var(--space-2) var(--space-4);
-  background: var(--color-muted);
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-}
-
-/* Ranking Modal */
-.modal-ranking-overlay {
-  align-items: flex-start;
-  padding-top: 40px;
-  padding-bottom: var(--space-4);
-}
-
-.modal-ranking-card {
-  max-width: 720px;
-  width: 96%;
-  max-height: 85vh;
+/* Ranking Content */
+.ranking-content {
   display: flex;
   flex-direction: column;
+  gap: var(--space-3);
 }
 
-.modal-ranking-header {
-  position: relative;
-  padding: var(--space-3) var(--space-4);
-  background: var(--color-muted);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.modal-ranking-header h4 {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--color-foreground);
-}
-
-.modal-ranking-controls {
+.ranking-controls {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--color-border);
 }
 
 .filter-toggle-label {
@@ -847,40 +758,14 @@ onMounted(() => load())
   width: 100%;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-sm);
+  background: var(--color-surface);
 }
 
-.modal-ranking-body {
-  padding: var(--space-4);
+.ranking-body {
+  max-height: 400px;
   overflow-y: auto;
-  flex: 1;
-  min-height: 200px;
-}
-
-.ranking-loading,
-.ranking-error,
-.ranking-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-5);
-  color: var(--color-text-muted);
-  gap: var(--space-2);
-}
-
-.loading-spinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid var(--color-border);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .ranking-table-wrap {
@@ -918,6 +803,13 @@ onMounted(() => load())
   margin: var(--space-3) 0 0;
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
+}
+
+.ranking-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
 }
 
 @media (max-width: 768px) {

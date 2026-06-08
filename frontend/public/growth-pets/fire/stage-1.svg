@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" role="img" aria-label="Fire growth pet stage 1">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="64%">
+      <stop offset="0" stop-color="#fff3c4"/>
+      <stop offset="1" stop-color="#ffe0d1"/>
+    </radialGradient>
+    <linearGradient id="body" x1="74" y1="42" x2="158" y2="178">
+      <stop offset="0" stop-color="#ffcf4a"/>
+      <stop offset="0.48" stop-color="#ff7a2d"/>
+      <stop offset="1" stop-color="#e8482e"/>
+    </linearGradient>
+  </defs>
+  <circle cx="110" cy="110" r="98" fill="url(#bg)"/>
+  <path d="M113 25c20 34-9 43 23 73 14 13 22 31 22 49 0 30-21 51-49 51s-49-21-49-51c0-23 13-39 31-57 14-14 21-32 22-65Z" fill="url(#body)"/>
+  <path d="M116 89c12 19-4 26 11 43 7 8 11 16 11 27 0 18-13 30-29 30s-29-12-29-30c0-14 8-24 19-34 9-8 14-19 17-36Z" fill="#fff1a8" opacity=".86"/>
+  <circle cx="94" cy="136" r="7" fill="#4c1b12"/>
+  <circle cx="126" cy="136" r="7" fill="#4c1b12"/>
+  <path d="M99 158c7 7 16 7 23 0" fill="none" stroke="#4c1b12" stroke-width="6" stroke-linecap="round"/>
+</svg>

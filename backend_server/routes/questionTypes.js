@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/database');
+const { cacheMiddleware } = require('../config/cache');
 const { logger } = require('../config/logger');
 
 // ================================================================
@@ -73,9 +74,9 @@ const requireSuperAdmin = async (req, res, next) => {
 };
 
 // ================================================================
-// 获取所有题目类型（系统预设 + 用户自定义）
+// 获取所有题目类型（系统预设 + 用户自定义，缓存600秒）
 // ================================================================
-router.get('/question-types', async (req, res) => {
+router.get('/question-types', cacheMiddleware(600, 'question-types'), async (req, res) => {
   try {
     const connection = await pool.getConnection();
 

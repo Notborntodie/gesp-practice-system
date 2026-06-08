@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/database');
 const { logger } = require('../config/logger');
+const { awardGrowthPetPoints } = require('../services/growthPetService');
 
 // ==================== 可复用的提交考试函数 ====================
 /**
@@ -100,6 +101,7 @@ async function submitExamInternal(connection, user_id, exam_id, answers, task_id
   
   // 计算得分
   const score = Math.round((correctCount / questionRows.length) * 100);
+  let growthPetReward = null;
   
   // 更新提交记录的得分和练习时长
   await connection.execute(
@@ -114,6 +116,7 @@ async function submitExamInternal(connection, user_id, exam_id, answers, task_id
       'SELECT * FROM user_exam_progress WHERE user_id = ? AND exam_id = ? AND task_id = ?',
       [user_id, exam_id, task_id]
     );
+    const wasCompleted = existingProgress.length > 0 && Boolean(existingProgress[0].is_completed);
     
     if (existingProgress.length > 0) {
       // 更新现有进度
@@ -139,6 +142,27 @@ async function submitExamInternal(connection, user_id, exam_id, answers, task_id
         VALUES (?, ?, ?, ?, ?, 1, ?)
       `, [user_id, exam_id, task_id, isCompleted ? 1 : 0, score, isCompleted ? new Date() : null]);
     }
+
+    if (isCompleted && !wasCompleted) {
+      try {
+        growthPetReward = await awardGrowthPetPoints(connection, {
+          user_id,
+          task_id,
+          source_type: 'exam',
+          source_id: exam_id,
+          score
+        });
+      } catch (error) {
+        logger.error('成长精灵客观题奖励发放失败', {
+          error: error.message,
+          user_id,
+          task_id,
+          exam_id,
+          score
+        });
+        growthPetReward = { awarded: false, points: 0, reason: 'reward_error' };
+      }
+    }
   }
   
   return {
@@ -147,7 +171,8 @@ async function submitExamInternal(connection, user_id, exam_id, answers, task_id
     total_questions: questionRows.length,
     correct_count: correctCount,
     attempt_number: attemptNumber,
-    answers: submissionAnswers
+    answers: submissionAnswers,
+    growth_pet_reward: growthPetReward
   };
 }
 

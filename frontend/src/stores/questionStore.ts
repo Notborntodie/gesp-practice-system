@@ -37,7 +37,7 @@ export const useQuestionStore = () => {
     loading.value = true
     try {
       console.log('开始获取题目列表...')
-      const response = await axios.get(`${BASE_URL}/questions`)
+      const response = await axios.get(`${BASE_URL}/questions?list=1`)
       
       // 只获取基本信息，不获取详情（按需加载）
       questions.value = response.data
@@ -56,7 +56,7 @@ export const useQuestionStore = () => {
   // 后台静默刷新数据
   const refreshInBackground = async () => {
     try {
-      const response = await axios.get(`${BASE_URL}/questions`)
+      const response = await axios.get(`${BASE_URL}/questions?list=1`)
       questions.value = response.data
       lastFetchTime.value = Date.now()
     } catch (error: any) {

@@ -9,7 +9,7 @@
         <slot name="header-right"></slot>
       </div>
     </div>
-    
+
     <div class="table-container">
       <slot name="content"></slot>
     </div>
@@ -24,86 +24,47 @@ defineProps<{
 
 <style scoped>
 .content-section {
-  background: linear-gradient(135deg, #87ceeb 0%, #b3d9ff 50%, #cce5ff 100%);
-  padding: 0;
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(30, 144, 255, 0.2);
-  width: 100%;
-  margin: 0;
-  border: 2px solid #87ceeb;
-  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  overflow: hidden;
+  gap: var(--space-4);
+  width: 100%;
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
+  padding: var(--space-4) var(--space-5);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
   flex-wrap: wrap;
-  gap: 8px;
-  background: linear-gradient(135deg, #87ceeb 0%, #b3d9ff 50%, #cce5ff 100%);
-  border-bottom: none;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  flex-shrink: 0;
-  box-shadow: none;
-  margin-bottom: 0;
+  gap: var(--space-3);
 }
 
 .section-header .header-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   flex-wrap: wrap;
 }
 
 .section-header h2 {
   margin: 0;
-  color: #0c4a6e;
-  font-size: 1.35rem;
-  font-weight: 900;
-  text-shadow: 0 2px 4px rgba(255, 255, 255, 0.5);
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--color-foreground);
 }
 
 .section-header .header-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .table-container {
-  width: 100%;
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 0;
   min-height: 0;
-  background: transparent;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(30, 144, 255, 0.3) transparent;
-}
-
-.table-container::-webkit-scrollbar {
-  width: 8px;
-}
-
-.table-container::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.table-container::-webkit-scrollbar-thumb {
-  background: rgba(30, 144, 255, 0.3);
-  border-radius: 4px;
-}
-
-.table-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(30, 144, 255, 0.5);
 }
 </style>
 

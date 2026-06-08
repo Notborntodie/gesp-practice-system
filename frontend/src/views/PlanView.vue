@@ -197,18 +197,25 @@
                 </div>
               </div>
 
-              <!-- 侧边栏视图：我的计划 -->
-              <div v-if="sidebarView === 'my-plans'">
-                <!-- GESP考级备考阶段横幅（计划页顶部） -->
-                <div v-if="currentView === 'plans'" class="preparation-banner">
-                  <div class="banner-content">
-                    <Icon name="info" :size="20" />
-                    <div class="banner-text">
-                      <strong>GESP考级备考阶段</strong>
-                      <span>欢迎大家来到信奥成长计划，我们2月2日-3月14日为GESP考级备考阶段，大家寒假期间练习辛苦啦！这次成长计划进行了升级，我们在后台增加了AI检测功能，将会对异常的提交情况进行判定，所以也请同学们认真作答哦～</span>
-                    </div>
+              <!-- 侧边栏视图：成长精灵 -->
+              <div v-if="sidebarView === 'growth-pets'" class="growth-pets-view">
+                <div class="content-section">
+                  <div class="section-header">
+                    <h4 class="section-title"><Icon name="sparkles" :size="18" /> 成长精灵</h4>
+                  </div>
+                  <div class="section-content">
+                    <GrowthPetWidget
+                      v-if="userInfo?.id"
+                      :user-id="userInfo.id"
+                      mode="full"
+                      :auto-prompt="false"
+                    />
                   </div>
                 </div>
+              </div>
+
+              <!-- 侧边栏视图：我的计划 -->
+              <div v-if="sidebarView === 'my-plans'">
                 <!-- 视图1: 我的学习计划列表 -->
                 <div v-if="currentView === 'plans'" class="plans-list-view">
                 <!-- 错误状态 -->
@@ -512,7 +519,15 @@
           <Icon name="trophy" :size="32" />
           <span>计划排名</span>
         </button>
-        <button 
+        <button
+          class="sidebar-nav-item sidebar-nav-item-growth-pets"
+          :class="{ active: sidebarView === 'growth-pets' }"
+          @click="router.push('/plan/growth-pets')"
+        >
+          <Icon name="sparkles" :size="32" />
+          <span>精灵榜</span>
+        </button>
+        <button
           class="sidebar-nav-item sidebar-nav-item-submissions" 
           :class="{ active: sidebarView === 'my-submissions' }"
           @click="router.push('/plan/submissions')"
@@ -725,22 +740,6 @@
           </button>
           </div>
         <div class="modal-body">
-          <!-- 级别选择 -->
-          <div class="level-selector">
-            <div class="level-label">选择GESP级别:</div>
-            <div class="level-buttons">
-              <button 
-                v-for="level in [1, 2, 3, 4, 5, 6, 7, 8]" 
-                :key="level"
-                class="level-btn"
-                :class="{ active: joinDialogLevel === level }"
-                @click="joinDialogLevel = level"
-              >
-                {{ level }}级
-              </button>
-        </div>
-      </div>
-
           <!-- 可用计划列表 -->
           <div class="available-plans">
             <div 
@@ -782,6 +781,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import Icon from '@/components/Icon.vue'
 import MySubmissionsSection from '@/components/plan/MySubmissionsSection.vue'
+import GrowthPetWidget from '@/components/plan/GrowthPetWidget.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -789,9 +789,10 @@ const route = useRoute()
 import { BASE_URL } from '@/config/api'
 
 // 根据路由 path 与 query 得到右侧栏视图（学生提交仅教师可见）
-function planSectionFromPath (path: string, queryView?: string, teacherOrAdmin?: boolean): 'my-plans' | 'global-ranking' | 'my-submissions' | 'my-tests' | 'student-submissions' {
+function planSectionFromPath (path: string, queryView?: string, teacherOrAdmin?: boolean): 'my-plans' | 'global-ranking' | 'my-submissions' | 'my-tests' | 'student-submissions' | 'growth-pets' {
   if (path === '/plan/ranking') return 'global-ranking'
   if (path === '/plan/tests') return 'my-tests'
+  if (path === '/plan/growth-pets') return 'growth-pets'
   if (path === '/plan/submissions') {
     if (queryView === 'students' && teacherOrAdmin) return 'student-submissions'
     return 'my-submissions'
@@ -818,7 +819,6 @@ const selectedTask = ref<any>(null)
 
 // 加入计划弹窗
 const showJoinDialog = ref(false)
-const joinDialogLevel = ref(1)
 const selectedJoinPlan = ref<any>(null)
 
 // 排名弹窗
@@ -878,11 +878,11 @@ const fetchMyPlans = async () => {
   }
 }
 
-const fetchAvailablePlans = async (level: number) => {
+const fetchAvailablePlans = async () => {
   if (!userInfo.value?.id) return []
   
   try {
-    const response = await fetch(`${BASE_URL}/learning-plans/available?user_id=${userInfo.value.id}&level=${level}`)
+    const response = await fetch(`${BASE_URL}/learning-plans/available?user_id=${userInfo.value.id}`)
     if (!response.ok) {
       throw new Error(`获取可用计划失败: ${response.status}`)
     }
@@ -1575,9 +1575,9 @@ const startOJ = (problem: any) => {
   router.push(`/smartoj/${problem.id}?${params.toString()}`)
 }
 
-// 获取指定级别的可用计划
-const getAvailablePlans = async (level: number) => {
-  const plans = await fetchAvailablePlans(level)
+// 获取全部可加入计划
+const getAvailablePlans = async () => {
+  const plans = await fetchAvailablePlans()
   return plans
 }
 
@@ -1594,17 +1594,11 @@ const confirmJoinPlan = async () => {
   }
 }
 
-// 监听级别变化，获取可用计划
-watch(joinDialogLevel, async (newLevel) => {
-  if (showJoinDialog.value) {
-    allAvailablePlans.value = await getAvailablePlans(newLevel)
-  }
-})
-
 // 监听弹窗显示，获取可用计划
 watch(showJoinDialog, async (show) => {
   if (show) {
-    allAvailablePlans.value = await getAvailablePlans(joinDialogLevel.value)
+    selectedJoinPlan.value = null
+    allAvailablePlans.value = await getAvailablePlans()
   }
 })
 
@@ -1925,6 +1919,42 @@ onMounted(async () => {
 .sidebar-nav-item-ranking.active span {
   color: #d97706;
   text-shadow: 0 3px 6px rgba(245, 158, 11, 0.3);
+}
+
+/* 成长精灵 - 青绿主题 */
+.sidebar-nav-item-growth-pets::before {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.1) 0%, rgba(34, 197, 94, 0.1) 100%);
+}
+
+.sidebar-nav-item-growth-pets:hover {
+  transform: translateX(-4px) scale(1.05);
+  box-shadow: 0 12px 32px rgba(20, 184, 166, 0.45);
+  border-color: #fff;
+  background: #fff;
+  animation: bounceRight 0.5s ease;
+}
+
+.sidebar-nav-item-growth-pets:hover::before {
+  opacity: 1;
+}
+
+.sidebar-nav-item-growth-pets.active {
+  background: linear-gradient(135deg, #fff 0%, #ccfbf1 100%);
+  border-color: #14b8a6;
+  border-width: 6px;
+  color: #0f766e;
+  box-shadow: 0 12px 40px rgba(20, 184, 166, 0.45);
+  transform: translateX(-3px) scale(1.03);
+}
+
+.sidebar-nav-item-growth-pets.active::before {
+  opacity: 1;
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.2) 0%, rgba(34, 197, 94, 0.2) 100%);
+}
+
+.sidebar-nav-item-growth-pets.active span {
+  color: #0f766e;
+  text-shadow: 0 3px 6px rgba(20, 184, 166, 0.25);
 }
 
 /* 我的提交 - 绿色主题 */
@@ -2440,59 +2470,6 @@ onMounted(async () => {
   color: #0369a1;
   font-size: 1.3rem;
   font-weight: 600;
-}
-
-/* GESP考级备考阶段横幅（计划页） */
-.preparation-banner {
-  margin-bottom: 20px;
-  background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
-  border-radius: 12px;
-  padding: 16px 20px;
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
-  animation: planBannerSlideDown 0.5s ease-out;
-}
-
-@keyframes planBannerSlideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.preparation-banner .banner-content {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  color: white;
-}
-
-.preparation-banner .banner-content :deep(.lucide-icon) {
-  flex-shrink: 0;
-  margin-top: 2px;
-  color: white;
-}
-
-.preparation-banner .banner-text {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.preparation-banner .banner-text strong {
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.4;
-}
-
-.preparation-banner .banner-text span {
-  font-size: 14px;
-  line-height: 1.5;
-  opacity: 0.95;
 }
 
 /* 我的计划列表 */
@@ -3502,6 +3479,11 @@ onMounted(async () => {
   animation: modalSlideIn 0.3s ease;
 }
 
+.join-plan-modal {
+  max-width: 1040px;
+  max-height: 90vh;
+}
+
 @keyframes modalSlideIn {
   from {
     opacity: 0;
@@ -3730,55 +3712,11 @@ onMounted(async () => {
   min-height: 500px; /* 确保有足够的高度 */
 }
 
-.level-selector {
-  margin-bottom: 24px;
-}
-
-.level-label {
-  font-size: 1.3rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin-bottom: 16px;
-}
-
-.level-buttons {
-  display: flex;
-  gap: 12px;
-}
-
-.level-btn {
-  flex: 1;
-  padding: 16px 24px;
-  border: 5px solid #e2e8f0;
-  border-radius: 16px;
-  background: white;
-  color: #64748b;
-  font-size: 1.2rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  letter-spacing: 0.5px;
-}
-
-.level-btn:hover {
-  border-color: #1e90ff;
-  color: #1e90ff;
-}
-
-.level-btn.active {
-  background: linear-gradient(135deg, #1e90ff 0%, #38bdf8 100%);
-  border-color: #1e90ff;
-  color: white;
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 6px 20px rgba(30, 144, 255, 0.4);
-  border-width: 6px;
-}
-
 .available-plans {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-height: 400px;
+  max-height: 620px;
   overflow-y: auto;
 }
 
@@ -4810,14 +4748,6 @@ onMounted(async () => {
     padding: 20px 24px;
   }
   
-  .level-buttons {
-    flex-wrap: wrap;
-  }
-  
-  .level-btn {
-    flex: 1 1 calc(50% - 6px);
-  }
-  
   .plan-card-footer {
     flex-direction: column;
   }
@@ -4916,4 +4846,3 @@ onMounted(async () => {
   }
 }
 </style>
-

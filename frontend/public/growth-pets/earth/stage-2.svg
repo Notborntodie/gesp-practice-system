@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" role="img" aria-label="Earth growth pet stage 2">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="66%">
+      <stop offset="0" stop-color="#f2ffd9"/>
+      <stop offset="1" stop-color="#cfebc4"/>
+    </radialGradient>
+    <linearGradient id="body" x1="49" y1="34" x2="164" y2="198">
+      <stop offset="0" stop-color="#a8dc70"/>
+      <stop offset=".58" stop-color="#6fa64b"/>
+      <stop offset="1" stop-color="#735337"/>
+    </linearGradient>
+  </defs>
+  <circle cx="110" cy="110" r="98" fill="url(#bg)"/>
+  <path d="M55 132c0-45 33-84 55-110 22 26 55 65 55 110 0 42-24 68-55 68s-55-26-55-68Z" fill="url(#body)"/>
+  <path d="M110 24c-28-14-55-12-83 11 28 17 55 16 83-11Z" fill="#77bd54"/>
+  <path d="M110 24c28-14 55-12 83 11-28 17-55 16-83-11Z" fill="#8ed164"/>
+  <path d="M49 152c-23 7-36 24-39 48 22-8 39-8 56 2" fill="#7bae4f"/>
+  <path d="M171 152c23 7 36 24 39 48-22-8-39-8-56 2" fill="#7bae4f"/>
+  <ellipse cx="110" cy="174" rx="63" ry="27" fill="#745235"/>
+  <circle cx="91" cy="137" r="7" fill="#262a17"/>
+  <circle cx="129" cy="137" r="7" fill="#262a17"/>
+  <path d="M98 160c9 8 20 8 29 0" fill="none" stroke="#262a17" stroke-width="6" stroke-linecap="round"/>
+</svg>

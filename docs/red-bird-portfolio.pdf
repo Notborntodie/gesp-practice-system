@@ -1,0 +1,262 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [8 0 R 10 0 R 12 0 R 14 0 R 16 0 R 18 0 R] /Count 6 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>
+endobj
+7 0 obj
+<< /Length 2414 >>
+stream
+BT /F3 8.5 Tf 10.6 TL 42.0 814.0 Td (Zhengyan Chen / Red Bird MPhil Portfolio) Tj ET
+BT /F3 8.5 Tf 10.6 TL 519.0 814.0 Td (1/6) Tj ET
+0.6 w 42.0 806.0 m 553.0 806.0 l S
+BT /F3 8.5 Tf 10.6 TL 42.0 790.0 Td (PERSONAL THEME) Tj ET
+BT /F2 21.0 Tf 26.2 TL 42.0 774.0 Td (AI Agents for Education and Reliable Workflows) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 745.6 Td (I am interested in building AI agents that do more than answer questions. The agents I want to build should) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 732.0 Td (understand real workflows, call tools, ask for human approval when needed, and help people make better) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 718.3 Td (decisions with less repetitive work.) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 700.6 Td (My background connects physics, software engineering, machine learning systems, and education technology.) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 687.0 Td (In research, I studied LLM inference and compiler systems, where backend choices, floating-point precision,) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 673.3 Td (and evaluation pipelines can affect model behavior. In education, I saw a different problem: teachers already) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 659.6 Td (have digital platforms, but still spend too much time switching pages, checking student progress, assigning) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 646.0 Td (practice, and following up manually.) Tj ET
+0.975 g
+42.0 582.3 511.0 54.0 re B
+0 g
+BT /F3 8.5 Tf 10.6 TL 56.0 614.3 Td (Working question) Tj ET
+BT /F2 11.5 Tf 14.4 TL 56.0 594.3 Td (How can AI agents become reliable workflow partners for education?) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 566.3 Td (I also actively use AI coding tools such as Codex and Claude Code in my engineering workflow. I use them to) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 552.6 Td (read codebases, draft implementation plans, debug, compare alternatives, and write documentation. Using) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 539.0 Td (these tools every day shaped how I think about agents: a useful agent needs context, tools, memory,) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 525.3 Td (constraints, and human control.) Tj ET
+0.955 g
+42.0 483.6 511.0 32.0 re B
+0 g
+BT /F4 9.3 Tf 11.6 TL 54.0 496.6 Td (Human workflow -> Agent -> Tools -> Data -> Human decision) Tj ET
+0.5 w 42.0 34.0 m 553.0 34.0 l S
+BT /F3 8.0 Tf 10.0 TL 42.0 18.0 Td (AI Agents + EdTech / Tool use, human approval, reliable systems) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> /Contents 7 0 R >>
+endobj
+9 0 obj
+<< /Length 2649 >>
+stream
+BT /F3 8.5 Tf 10.6 TL 42.0 814.0 Td (Zhengyan Chen / Red Bird MPhil Portfolio) Tj ET
+BT /F3 8.5 Tf 10.6 TL 519.0 814.0 Td (2/6) Tj ET
+0.6 w 42.0 806.0 m 553.0 806.0 l S
+BT /F3 8.5 Tf 10.6 TL 42.0 790.0 Td (NEW ORIENTAL) Tj ET
+BT /F2 21.0 Tf 26.2 TL 42.0 774.0 Td (From Traditional OJ to Agent-Assisted Teaching) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 745.6 Td (During my Teaching Fellow \(Management Trainee\) experience at Suzhou New Oriental Training School, I coached) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 732.0 Td (students for informatics learning, including DFS/BFS, dynamic programming, arrays, and linked lists.) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 714.3 Td (Working close to daily teaching operations helped me notice a limitation of traditional OJ systems. They are) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 700.6 Td (good at judging submissions, but weak at supporting what teachers need after judging.) Tj ET
+BT /F2 9.8 Tf 12.2 TL 50.0 683.0 Td (-) Tj ET
+BT /F1 9.8 Tf 13.1 TL 64.0 683.0 Td (Who is falling behind?) Tj ET
+BT /F2 9.8 Tf 12.2 TL 50.0 668.8 Td (-) Tj ET
+BT /F1 9.8 Tf 13.1 TL 64.0 668.8 Td (Which problems are blocking the class?) Tj ET
+BT /F2 9.8 Tf 12.2 TL 50.0 654.7 Td (-) Tj ET
+BT /F1 9.8 Tf 13.1 TL 64.0 654.7 Td (Which student needs easier practice before moving on?) Tj ET
+BT /F2 9.8 Tf 12.2 TL 50.0 640.6 Td (-) Tj ET
+BT /F1 9.8 Tf 13.1 TL 64.0 640.6 Td (Which plan should be adjusted this week?) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 626.5 Td (I started thinking about the OJ platform not only as a judge, but as a teaching workflow system. My approach) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 612.8 Td (was to wrap core CRUD services into MCP tools, including problem management, learning plans, submissions,) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 599.1 Td (student progress, and recommendation-related data.) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 581.4 Td (Once these services become tools, an agent can help teachers query progress, compare students, adjust) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 567.8 Td (plans, and generate personalized practice suggestions through natural language. The value is not in replacing) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 554.1 Td (teachers; it is in reducing operational friction so teachers can spend more time on judgment, guidance, and) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 540.4 Td (communication.) Tj ET
+0.955 g
+42.0 498.8 511.0 32.0 re B
+0 g
+BT /F4 9.3 Tf 11.6 TL 54.0 511.8 Td (Teacher -> Natural language request -> MCP tools -> Agent summary -> Teacher confirmation) Tj ET
+0.5 w 42.0 34.0 m 553.0 34.0 l S
+BT /F3 8.0 Tf 10.0 TL 42.0 18.0 Td (AI Agents + EdTech / Tool use, human approval, reliable systems) Tj ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> /Contents 9 0 R >>
+endobj
+11 0 obj
+<< /Length 2682 >>
+stream
+BT /F3 8.5 Tf 10.6 TL 42.0 814.0 Td (Zhengyan Chen / Red Bird MPhil Portfolio) Tj ET
+BT /F3 8.5 Tf 10.6 TL 519.0 814.0 Td (3/6) Tj ET
+0.6 w 42.0 806.0 m 553.0 806.0 l S
+BT /F3 8.5 Tf 10.6 TL 42.0 790.0 Td (LIVE EDTECH SYSTEM) Tj ET
+BT /F2 21.0 Tf 26.2 TL 42.0 774.0 Td (GESP Intelligent Practice Platform) Tj ET
+BT /F3 10.2 Tf 13.7 TL 42.0 745.6 Td (Live platform: https://gesp.growplan.top/) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 728.0 Td (I built and developed the GESP practice platform, an online programming practice and growth plan system used) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 714.3 Td (by about 1,000 students and teachers. The platform supports OJ programming practice, learning plans,) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 700.6 Td (student progress tracking, and teacher-side management.) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 683.0 Td (The first version solved the basic infrastructure problem: students need a place to practice, submit code,) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 669.3 Td (and track progress; teachers need a way to assign plans and see completion. The more interesting problem is) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 655.6 Td (what comes next. A fixed plan is often too rigid. Different students fail for different reasons, and teachers) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 642.0 Td (cannot manually inspect every submission history all the time.) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 624.3 Td (The direction I explored is to upgrade the platform into an adaptive learning loop:) Tj ET
+0.955 g
+42.0 565.6 511.0 49.0 re B
+0 g
+BT /F4 9.3 Tf 11.6 TL 54.0 595.6 Td (Practice -> Judge -> Track Progress) Tj ET
+BT /F4 9.3 Tf 11.6 TL 54.0 578.6 Td (Identify Weakness -> Recommend Next Task -> Teacher Follow-up) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 549.6 Td (In this design, OJ submissions and learning-plan progress become signals for an agent. The agent can analyze) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 536.0 Td (verdicts, unfinished tasks, repeated wrong attempts, weak topics, and practice duration, then recommend the) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 522.3 Td (next set of tasks. Teachers still keep control, but the system gives them better context and faster) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 508.6 Td (follow-up options.) Tj ET
+BT /F2 9.8 Tf 12.2 TL 50.0 491.0 Td (-) Tj ET
+BT /F1 9.8 Tf 13.1 TL 64.0 491.0 Td (Full-stack education platform with real student and teacher usage) Tj ET
+BT /F2 9.8 Tf 12.2 TL 50.0 476.8 Td (-) Tj ET
+BT /F1 9.8 Tf 13.1 TL 64.0 476.8 Td (A path from CRUD services to agent-driven learning support) Tj ET
+0.5 w 42.0 34.0 m 553.0 34.0 l S
+BT /F3 8.0 Tf 10.0 TL 42.0 18.0 Td (AI Agents + EdTech / Tool use, human approval, reliable systems) Tj ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> /Contents 11 0 R >>
+endobj
+13 0 obj
+<< /Length 2347 >>
+stream
+BT /F3 8.5 Tf 10.6 TL 42.0 814.0 Td (Zhengyan Chen / Red Bird MPhil Portfolio) Tj ET
+BT /F3 8.5 Tf 10.6 TL 519.0 814.0 Td (4/6) Tj ET
+0.6 w 42.0 806.0 m 553.0 806.0 l S
+BT /F3 8.5 Tf 10.6 TL 42.0 790.0 Td (HUMAN-IN-THE-LOOP AUTOMATION) Tj ET
+BT /F2 21.0 Tf 26.2 TL 42.0 774.0 Td (A Controllable WeCom Agent) Tj ET
+BT /F3 10.2 Tf 13.7 TL 42.0 745.6 Td (GitHub: https://github.com/Notborntodie/wecom-agent/) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 728.0 Td (At New Oriental, I built a WeCom agent used internally. The goal was not to create a fully autonomous bot. In a) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 714.3 Td (teaching and management environment, uncontrolled automation is risky. A wrong message can affect) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 700.6 Td (students, parents, teachers, or internal operations.) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 683.0 Td (So I designed the agent around a controllable workflow:) Tj ET
+0.955 g
+42.0 641.3 511.0 32.0 re B
+0 g
+BT /F4 9.3 Tf 11.6 TL 54.0 654.3 Td (Message sensing -> LLM reply planning -> Human approval -> Safe execution) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 625.3 Td (The agent turns a closed desktop communication environment into a semi-automated workflow. It reads) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 611.6 Td (relevant message context, drafts possible replies or actions with an LLM, asks for confirmation, and only) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 598.0 Td (executes after approval. This project strengthened my belief that safety is not an extra feature for) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 584.3 Td (applied agents; it is part of the architecture.) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 566.6 Td (This also mirrors how I work with Codex and Claude Code. I use them to inspect code, propose diffs, find edge) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 553.0 Td (cases, and document decisions, while keeping the final responsibility and system judgment human-led.) Tj ET
+BT /F2 9.8 Tf 12.2 TL 50.0 535.3 Td (-) Tj ET
+BT /F1 9.8 Tf 13.1 TL 64.0 535.3 Td (Practical agent engineering in an internal work environment) Tj ET
+BT /F2 9.8 Tf 12.2 TL 50.0 521.2 Td (-) Tj ET
+BT /F1 9.8 Tf 13.1 TL 64.0 521.2 Td (Human approval and safe execution as first-class design choices) Tj ET
+0.5 w 42.0 34.0 m 553.0 34.0 l S
+BT /F3 8.0 Tf 10.0 TL 42.0 18.0 Td (AI Agents + EdTech / Tool use, human approval, reliable systems) Tj ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> /Contents 13 0 R >>
+endobj
+15 0 obj
+<< /Length 2547 >>
+stream
+BT /F3 8.5 Tf 10.6 TL 42.0 814.0 Td (Zhengyan Chen / Red Bird MPhil Portfolio) Tj ET
+BT /F3 8.5 Tf 10.6 TL 519.0 814.0 Td (5/6) Tj ET
+0.6 w 42.0 806.0 m 553.0 806.0 l S
+BT /F3 8.5 Tf 10.6 TL 42.0 790.0 Td (CONFIDENTIAL UGA RESEARCH) Tj ET
+BT /F2 21.0 Tf 26.2 TL 42.0 774.0 Td (LLM Systems, Compiler Backends, and Reliability) Tj ET
+BT /F3 10.2 Tf 13.7 TL 42.0 745.6 Td (Role: Research Assistant, The University of Georgia, Jun 2024 - Jan 2025) Tj ET
+BT /F3 10.2 Tf 13.7 TL 42.0 728.0 Td (Note: confidential research experience; project details and data are not public.) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 710.3 Td (At the University of Georgia, I worked on confidential research related to deep learning compiler systems and) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 696.6 Td (LLM inference. Although I cannot disclose project details, this experience gave me a systems-level view of) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 683.0 Td (AI.) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 665.3 Td (I worked with LLM inference and compilation frameworks such as llama.cpp and MLC-LLM. I explored backend) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 651.6 Td (support, including Vulkan, and enabled evaluation workflows with lm_eval, a widely used framework for) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 638.0 Td (measuring LLM accuracy across tasks.) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 620.3 Td (The most valuable part was learning to think about AI reliability below the application layer. In LLM systems, a) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 606.6 Td (model output is not only determined by a prompt. It can also be affected by inference kernels, compiler) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 593.0 Td (optimizations, backend differences, floating-point precision, and evaluation setup.) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 575.3 Td (Small numerical differences in logits may accumulate and eventually lead to different generated outputs,) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 561.6 Td (especially in autoregressive decoding. This experience made me more careful about agent systems: useful) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 548.0 Td (agents need reliable inference, careful evaluation, transparent tool use, and reproducible behavior where) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 534.3 Td (possible.) Tj ET
+0.955 g
+42.0 492.6 511.0 32.0 re B
+0 g
+BT /F4 9.3 Tf 11.6 TL 54.0 505.6 Td (Model -> Inference runtime -> Compiler/backend -> Hardware -> Evaluation) Tj ET
+0.5 w 42.0 34.0 m 553.0 34.0 l S
+BT /F3 8.0 Tf 10.0 TL 42.0 18.0 Td (AI Agents + EdTech / Tool use, human approval, reliable systems) Tj ET
+endstream
+endobj
+16 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> /Contents 15 0 R >>
+endobj
+17 0 obj
+<< /Length 2915 >>
+stream
+BT /F3 8.5 Tf 10.6 TL 42.0 814.0 Td (Zhengyan Chen / Red Bird MPhil Portfolio) Tj ET
+BT /F3 8.5 Tf 10.6 TL 519.0 814.0 Td (6/6) Tj ET
+0.6 w 42.0 806.0 m 553.0 806.0 l S
+BT /F3 8.5 Tf 10.6 TL 42.0 790.0 Td (PRODUCTION DEBUGGING + FUTURE DIRECTION) Tj ET
+BT /F2 21.0 Tf 26.2 TL 42.0 774.0 Td (Learning from Real Failures, Then Building Better Agents) Tj ET
+BT /F3 10.2 Tf 13.7 TL 42.0 745.6 Td (Publication: Demystifying Developers' Fight Against Complexity: A Comprehensive Study of Live Debugging) Tj ET
+BT /F3 10.2 Tf 13.7 TL 42.0 732.0 Td (Activities in Production Cloud Systems. SoCC 2024.) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 714.3 Td (In my remote research experience with Purdue University, I worked on a project studying how developers) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 700.6 Td (debug complex production cloud systems. My main contribution was collecting and organizing public real-world) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 687.0 Td (debugging cases from distributed systems and databases. This supported the analysis behind the SoCC 2024) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 673.3 Td (publication.) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 655.6 Td (This project taught me how engineers reason under uncertainty. In production debugging, people rarely know) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 642.0 Td (the answer at the beginning. They collect evidence, form hypotheses, inspect logs and traces, test) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 628.3 Td (assumptions, and gradually narrow down the problem.) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 610.6 Td (A useful agent should behave more like a careful engineer than a text generator. It should gather context,) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 597.0 Td (call tools, verify assumptions, expose uncertainty, and keep humans in control when decisions matter.) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 579.3 Td (This is why the Red Bird MPhil is attractive to me. I want to work in an environment where project-based) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 565.6 Td (research is connected with real systems and real users. My goal is to build AI agents for education that are) Tj ET
+BT /F1 10.2 Tf 13.7 TL 42.0 552.0 Td (practical, controllable, and technically reliable.) Tj ET
+BT /F2 9.8 Tf 12.2 TL 50.0 534.3 Td (-) Tj ET
+BT /F1 9.8 Tf 13.1 TL 64.0 534.3 Td (GitHub: https://github.com/Notborntodie) Tj ET
+BT /F2 9.8 Tf 12.2 TL 50.0 520.2 Td (-) Tj ET
+BT /F1 9.8 Tf 13.1 TL 64.0 520.2 Td (GESP: https://gesp.growplan.top/) Tj ET
+BT /F2 9.8 Tf 12.2 TL 50.0 506.0 Td (-) Tj ET
+BT /F1 9.8 Tf 13.1 TL 64.0 506.0 Td (WeCom Agent: https://github.com/Notborntodie/wecom-agent/) Tj ET
+BT /F2 9.8 Tf 12.2 TL 50.0 491.9 Td (-) Tj ET
+BT /F1 9.8 Tf 13.1 TL 64.0 491.9 Td (SoCC 2024 Paper: https://yonglezh-purdue.github.io/files/socc24-live-debugging.pdf) Tj ET
+0.5 w 42.0 34.0 m 553.0 34.0 l S
+BT /F3 8.0 Tf 10.0 TL 42.0 18.0 Td (AI Agents + EdTech / Tool use, human approval, reliable systems) Tj ET
+endstream
+endobj
+18 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R /F4 6 0 R >> >> /Contents 17 0 R >>
+endobj
+xref
+0 19
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000156 00000 n 
+0000000226 00000 n 
+0000000301 00000 n 
+0000000379 00000 n 
+0000000447 00000 n 
+0000002913 00000 n 
+0000003069 00000 n 
+0000005770 00000 n 
+0000005927 00000 n 
+0000008662 00000 n 
+0000008820 00000 n 
+0000011220 00000 n 
+0000011378 00000 n 
+0000013978 00000 n 
+0000014136 00000 n 
+0000017104 00000 n 
+trailer
+<< /Size 19 /Root 1 0 R >>
+startxref
+17262
+%%EOF

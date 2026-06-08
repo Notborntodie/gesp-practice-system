@@ -14,6 +14,7 @@ const ojRoutes = require('./oj');
 const learningPlanRoutes = require('./learningPlans');
 const testRoutes = require('./tests');
 const questionTypesRoutes = require('./questionTypes');
+const growthPetRoutes = require('./growthPets');
 
 // 健康检查接口
 router.get('/api/health', async (req, res) => {
@@ -49,5 +50,6 @@ router.use('/api', ojRoutes);
 router.use('/api', learningPlanRoutes);
 router.use('/api', testRoutes);
 router.use('/api', questionTypesRoutes);
+router.use('/api', growthPetRoutes);
 
 module.exports = router;

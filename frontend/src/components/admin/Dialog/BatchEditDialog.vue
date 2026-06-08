@@ -111,10 +111,10 @@
               </AppFormField>
 
               <AppFormField label="题目日期">
-                <AppInput
+                <AppMonthSelect
                   v-model="currentQuestion.question_date"
-                  type="month"
                   placeholder="选择年月"
+                  full-width
                   @update:model-value="markAsEdited"
                 />
               </AppFormField>
@@ -338,6 +338,7 @@ import axios from 'axios'
 import AppDialog from '@/components/ui/AppDialog.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
+import AppMonthSelect from '@/components/ui/AppMonthSelect.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
 import AppTag from '@/components/ui/AppTag.vue'
 import AppButton from '@/components/ui/AppButton.vue'

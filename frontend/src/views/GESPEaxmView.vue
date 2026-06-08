@@ -3389,8 +3389,9 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   align-items: center;
-  max-width: 90%;
-  max-height: 90%;
+  justify-content: center;
+  max-width: 90vw;
+  max-height: 90vh;
   overflow: hidden;
   position: relative;
 }
@@ -3418,8 +3419,10 @@ export default defineComponent({
 
 .modal-image {
   display: block;
-  max-width: 100%;
-  max-height: 100%;
+  max-width: 90vw;
+  max-height: 85vh;
+  width: auto;
+  height: auto;
   object-fit: contain;
 }
 

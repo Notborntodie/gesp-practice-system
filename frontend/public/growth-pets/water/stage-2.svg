@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" role="img" aria-label="Water growth pet stage 2">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="66%">
+      <stop offset="0" stop-color="#e4fbff"/>
+      <stop offset="1" stop-color="#bfdcff"/>
+    </radialGradient>
+    <linearGradient id="body" x1="61" y1="26" x2="161" y2="194">
+      <stop offset="0" stop-color="#9af3ff"/>
+      <stop offset=".52" stop-color="#3faeff"/>
+      <stop offset="1" stop-color="#255fc4"/>
+    </linearGradient>
+  </defs>
+  <circle cx="110" cy="110" r="98" fill="url(#bg)"/>
+  <path d="M110 18c36 42 67 76 67 119 0 38-30 63-67 63s-67-25-67-63c0-43 31-77 67-119Z" fill="url(#body)"/>
+  <path d="M68 126c-24 1-42 16-51 38 21 0 39 6 54 20" fill="#63cfff"/>
+  <path d="M152 126c24 1 42 16 51 38-21 0-39 6-54 20" fill="#63cfff"/>
+  <path d="M84 75c-18 27-29 46-29 68 0 27 20 46 48 51-19-22-23-58-19-119Z" fill="#d4fbff" opacity=".42"/>
+  <circle cx="91" cy="139" r="7" fill="#102f58"/>
+  <circle cx="129" cy="139" r="7" fill="#102f58"/>
+  <path d="M98 162c9 8 20 8 29 0" fill="none" stroke="#102f58" stroke-width="6" stroke-linecap="round"/>
+</svg>

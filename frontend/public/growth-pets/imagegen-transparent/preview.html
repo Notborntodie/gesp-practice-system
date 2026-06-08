@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Imagegen 成长精灵透明 PNG 预览</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 28px;
+        background: #f7f9fc;
+        color: #172033;
+        font-family: Arial, "Microsoft YaHei", sans-serif;
+      }
+
+      h1 {
+        margin: 0 0 20px;
+        font-size: 24px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 20px;
+      }
+
+      .card {
+        padding: 14px;
+        border: 1px solid #d8e0ec;
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .checker {
+        height: 280px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        background-color: #fff;
+        background-image:
+          linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
+          linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
+          linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
+          linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+        background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+        background-size: 24px 24px;
+      }
+
+      img {
+        width: 240px;
+        height: 240px;
+        object-fit: contain;
+      }
+
+      .label {
+        margin-top: 10px;
+        font-size: 15px;
+        font-weight: 700;
+        text-align: center;
+      }
+
+      @media (max-width: 860px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Imagegen 成长精灵透明 PNG 预览</h1>
+    <div class="grid">
+      <div class="card"><div class="checker"><img src="./candidate-01.png" alt="candidate 01" /></div><div class="label">candidate-01.png</div></div>
+      <div class="card"><div class="checker"><img src="./candidate-02.png" alt="candidate 02" /></div><div class="label">candidate-02.png</div></div>
+      <div class="card"><div class="checker"><img src="./candidate-03.png" alt="candidate 03" /></div><div class="label">candidate-03.png</div></div>
+      <div class="card"><div class="checker"><img src="./candidate-04.png" alt="candidate 04" /></div><div class="label">candidate-04.png</div></div>
+      <div class="card"><div class="checker"><img src="./candidate-05.png" alt="candidate 05" /></div><div class="label">candidate-05.png</div></div>
+      <div class="card"><div class="checker"><img src="./candidate-06.png" alt="candidate 06" /></div><div class="label">candidate-06.png</div></div>
+      <div class="card"><div class="checker"><img src="./candidate-07.png" alt="candidate 07" /></div><div class="label">candidate-07.png</div></div>
+      <div class="card"><div class="checker"><img src="./candidate-08.png" alt="candidate 08" /></div><div class="label">candidate-08.png</div></div>
+      <div class="card"><div class="checker"><img src="./candidate-09.png" alt="candidate 09" /></div><div class="label">candidate-09.png</div></div>
+    </div>
+  </body>
+</html>

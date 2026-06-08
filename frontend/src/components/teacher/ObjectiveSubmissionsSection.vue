@@ -1,128 +1,63 @@
-<template>
-  <BaseTeacherSection title="客观题提交">
-    <template #filters>
-      <div class="filters-container">
-        <div class="search-box">
-          <input 
-            v-model="searchQuery" 
-            type="text" 
-            placeholder="搜索考试名称..."
-            class="search-input"
-          />
-          <Icon name="search" :size="18" class="search-icon" />
-        </div>
-        <div class="level-filter">
-          <label>考级筛选：</label>
-          <select v-model="selectedLevel" @change="handleLevelChange" class="level-select">
-            <option value="">全部考级</option>
-            <option v-for="level in [1, 2, 3, 4, 5, 6, 7, 8]" :key="level" :value="level">
-              {{ level }}级
-            </option>
-          </select>
-        </div>
-      </div>
-    </template>
-    
-    <template #header-right>
-      <span class="count-info">共 {{ filteredExams.length }} 个考试</span>
-    </template>
-    
-    <template #content>
-      <div v-if="examsLoading" class="loading-state">
-        <div class="loading-spinner"></div>
-        <p>正在加载考试列表...</p>
-      </div>
-      <div v-else-if="filteredExams.length === 0" class="empty-state">
-        <Icon name="file-text" :size="64" class="empty-icon" />
-        <h3>暂无考试</h3>
-        <p>当前筛选条件下没有考试</p>
-      </div>
-      <div v-else class="data-table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>考试名称</th>
-              <th>考试等级</th>
-              <th>考试类型</th>
-              <th>总题数</th>
-              <th>考试时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr 
-              v-for="exam in filteredExams" 
-              :key="exam.id"
-              class="table-row"
-              @click="handleExamClick(exam)"
-            >
-              <td>
-                <div class="exam-name-cell">
-                  <span class="exam-name-text">{{ exam.name || '未知考试' }}</span>
-                </div>
-              </td>
-              <td>
-                <span class="exam-level-badge">{{ exam.level }}级</span>
-              </td>
-              <td>
-                <span class="type-badge" :class="`type-${exam.type || '真题'}`">
-                  {{ getTypeText(exam.type) }}
-                </span>
-              </td>
-              <td>
-                <span class="question-count">{{ exam.total_questions || 0 }} 题</span>
-              </td>
-              <td class="date-cell">{{ exam.exam_time || '未设置' }}</td>
-              <td>
-                <div class="action-buttons" @click.stop>
-                  <button @click="handleExamClick(exam)" class="btn-action btn-view" title="查看详情">
-                    <Icon name="eye" :size="18" />
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </template>
-  </BaseTeacherSection>
-</template>
-
-<script setup lang="ts">import { BASE_URL } from '@/config/api'
-
+<script setup lang="ts">
+import { BASE_URL } from '@/config/api'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import { Search, FileText, Eye } from 'lucide-vue-next'
 import BaseTeacherSection from './BaseTeacherSection.vue'
-import Icon from '@/components/Icon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
+import AppTag from '@/components/ui/AppTag.vue'
+import AppSelect from '@/components/ui/AppSelect.vue'
+import AppEmptyState from '@/components/ui/AppEmptyState.vue'
+
+// Stores
+import { useQuestionTypeStore } from '@/stores/questionTypeStore'
 
 const router = useRouter()
+const questionTypeStore = useQuestionTypeStore()
 
-// 从 localStorage 恢复筛选状态
-const getInitialSelectedLevel = () => {
-  const saved = localStorage.getItem('teacherView_selectedLevel')
-  if (!saved || saved === 'null') return null
-  const num = Number(saved)
-  return isNaN(num) ? saved : num
-}
-
-const selectedLevel = ref<number | string | null>(getInitialSelectedLevel())
+// 筛选状态
+const selectedLevel = ref<string | null>(null)
+const selectedCategory = ref<string | null>(null)
 const searchQuery = ref('')
 const exams = ref<any[]>([])
 const examsLoading = ref(false)
 
-// 获取用户信息
+// 用户信息
 const userInfo = ref<any>(null)
+
+// 来源选项
+const categoryOptions = computed(() => {
+  const types = questionTypeStore.allTypes.value || []
+  return types.map((t: any) => ({ label: t.display_name || t.name, value: t.name }))
+})
+
+// 级别选项
+const levelOptions = [
+  { label: 'GESP 1级', value: '1' },
+  { label: 'GESP 2级', value: '2' },
+  { label: 'GESP 3级', value: '3' },
+  { label: 'GESP 4级', value: '4' },
+  { label: 'GESP 5级', value: '5' },
+  { label: 'GESP 6级', value: '6' },
+  { label: 'GESP 7级', value: '7' },
+  { label: 'GESP 8级', value: '8' }
+]
 
 // 过滤后的考试列表
 const filteredExams = computed(() => {
   let result = exams.value
-  
-  // 按考级筛选
-  if (selectedLevel.value !== null && selectedLevel.value !== '') {
-    result = result.filter(exam => exam.level === selectedLevel.value)
+
+  // 按题目来源筛选
+  if (selectedCategory.value) {
+    result = result.filter(exam => (exam.category || 'GESP') === selectedCategory.value)
   }
-  
+
+  // 按级别筛选（仅当来源为 GESP 或未选择来源时）
+  if (selectedLevel.value && (!selectedCategory.value || selectedCategory.value === 'GESP')) {
+    result = result.filter(exam => exam.level === Number(selectedLevel.value))
+  }
+
   // 按搜索关键词筛选
   if (searchQuery.value.trim()) {
     const query = searchQuery.value.toLowerCase().trim()
@@ -131,39 +66,38 @@ const filteredExams = computed(() => {
       return name.includes(query)
     })
   }
-  
+
   return result
 })
 
-// 类型文本转换
-const getTypeText = (type: string) => {
-  return type || '真题'
+// 获取来源标签样式
+function getCategoryTagType(category: string): string {
+  const types: Record<string, string> = {
+    'GESP': 'primary',
+    'CSP_J': 'success',
+    'CSP_S': 'warning',
+    'NOI_P': 'info',
+    'NOI_A': 'default',
+    'NOI_IOI': 'destructive',
+    'Other': 'default'
+  }
+  return types[category] || 'default'
 }
 
-// 处理考级筛选变化
-function handleLevelChange() {
-  if (selectedLevel.value === null || selectedLevel.value === '') {
-    localStorage.setItem('teacherView_selectedLevel', 'null')
-  } else {
-    localStorage.setItem('teacherView_selectedLevel', String(selectedLevel.value))
-  }
-  fetchExams()
+// 获取来源显示文本
+function getCategoryText(category: string): string {
+  const type = questionTypeStore.getQuestionTypeByName(category)
+  return type?.display_name || category || 'GESP'
 }
 
 // 获取考试列表
-const fetchExams = async () => {
-  if (!userInfo.value) {
-    console.log('用户信息未加载，跳过获取考试列表')
-    return
-  }
-  
-  console.log('开始获取考试列表')
+async function fetchExams() {
+  if (!userInfo.value) return
+
   examsLoading.value = true
   try {
     const response = await axios.get(`${BASE_URL}/exams`, { params: { include_all: 1 } })
-    console.log('获取考试列表API响应:', response.data)
-    
-    // 处理不同的响应格式
+
     let examList = []
     if (response.data.data?.exams) {
       examList = response.data.data.exams
@@ -174,13 +108,10 @@ const fetchExams = async () => {
     } else if (Array.isArray(response.data)) {
       examList = response.data
     }
-    
+
     exams.value = examList
-    console.log('考试列表更新完成，考试数量:', examList.length)
   } catch (error: any) {
     console.error('获取考试列表失败:', error)
-    console.error('错误详情:', error.response?.data)
-    alert('获取考试列表失败: ' + (error.response?.data?.error || error.response?.data?.message || error.message))
   } finally {
     examsLoading.value = false
   }
@@ -188,20 +119,11 @@ const fetchExams = async () => {
 
 // 处理考试点击
 function handleExamClick(exam: any) {
-  if (!userInfo.value) {
-    console.log('用户信息未加载，无法跳转')
-    return
-  }
-  
-  // 保存当前状态
-  if (selectedLevel.value !== null && selectedLevel.value !== '') {
-    localStorage.setItem('teacherView_selectedLevel', String(selectedLevel.value))
-  }
-  
-  // 跳转到 StudentSubmissionsView
+  if (!userInfo.value) return
+
   router.push({
     path: `/teacher/${userInfo.value.id}/submissions`,
-    query: { 
+    query: {
       exam_id: exam.id.toString(),
       fromSection: 'objective-submissions',
       fromTeacherView: 'true'
@@ -210,17 +132,18 @@ function handleExamClick(exam: any) {
 }
 
 // 获取用户信息
-const getUserInfo = () => {
+function getUserInfo() {
   const userInfoStr = localStorage.getItem('userInfo')
   if (userInfoStr) {
     userInfo.value = JSON.parse(userInfoStr)
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   getUserInfo()
+  await questionTypeStore.fetchQuestionTypes()
   if (userInfo.value) {
-    fetchExams()
+    await fetchExams()
   }
 })
 
@@ -236,145 +159,154 @@ watch(() => {
 }, { immediate: true })
 </script>
 
+<template>
+  <BaseTeacherSection title="客观题提交">
+    <template #filters>
+      <div class="filters-container">
+        <div class="search-box">
+          <Search :size="16" class="search-icon" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="搜索考试名称..."
+            class="search-input"
+          />
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">题目来源：</label>
+          <AppSelect
+            v-model="selectedCategory"
+            :options="categoryOptions"
+            placeholder="全部来源"
+          />
+        </div>
+        <div v-if="!selectedCategory || selectedCategory === 'GESP'" class="filter-group">
+          <label class="filter-label">级别：</label>
+          <AppSelect
+            v-model="selectedLevel"
+            :options="levelOptions"
+            placeholder="全部级别"
+          />
+        </div>
+      </div>
+    </template>
+
+    <template #header-right>
+      <span class="count-info">共 {{ filteredExams.length }} 个考试</span>
+    </template>
+
+    <template #content>
+      <AppEmptyState v-if="examsLoading" type="loading" description="正在加载考试列表..." />
+
+      <AppEmptyState v-else-if="filteredExams.length === 0" type="empty" description="当前筛选条件下没有考试" />
+
+      <div v-else class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>考试名称</th>
+              <th>题目来源</th>
+              <th>级别</th>
+              <th>类型</th>
+              <th>总题数</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="exam in filteredExams"
+              :key="exam.id"
+              class="table-row"
+              @click="handleExamClick(exam)"
+            >
+              <td class="name-cell">{{ exam.name || '未知考试' }}</td>
+              <td>
+                <AppTag :type="getCategoryTagType(exam.category || 'GESP')">
+                  {{ getCategoryText(exam.category || 'GESP') }}
+                </AppTag>
+              </td>
+              <td>
+                <AppTag v-if="(exam.category || 'GESP') === 'GESP'" type="info">
+                  GESP {{ exam.level }}级
+                </AppTag>
+                <span v-else class="no-level">-</span>
+              </td>
+              <td>
+                <AppTag type="default">
+                  {{ exam.type || '真题' }}
+                </AppTag>
+              </td>
+              <td>{{ exam.total_questions || 0 }} 题</td>
+              <td @click.stop>
+                <AppButton variant="primary" size="sm" @click="handleExamClick(exam)">
+                  <Eye :size="14" />
+                  查看
+                </AppButton>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
+  </BaseTeacherSection>
+</template>
+
 <style scoped>
 .filters-container {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-3);
   flex-wrap: wrap;
 }
 
 .search-box {
-  position: relative;
   display: flex;
   align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  min-width: 200px;
 }
 
 .search-input {
-  padding: 16px 20px 16px 48px;
-  border: 3px solid #87ceeb;
-  border-radius: 16px;
-  font-size: 16px;
-  font-weight: 600;
-  width: 300px;
-  transition: all 0.3s ease;
-  background: linear-gradient(135deg, #ffffff 0%, #e0f2fe 100%);
-  box-shadow: 0 2px 8px rgba(30, 144, 255, 0.15);
-}
-
-.search-input:focus {
+  border: none;
+  background: transparent;
+  font-size: var(--font-size-sm);
+  color: var(--color-foreground);
   outline: none;
-  border-color: #1e90ff;
-  border-width: 4px;
-  box-shadow: 0 4px 16px rgba(30, 144, 255, 0.3);
-  transform: scale(1.02);
+  width: 100%;
+  padding: 0;
 }
 
 .search-icon {
-  position: absolute;
-  left: 16px;
-  color: #1e90ff;
-  font-size: 20px;
-  pointer-events: none;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
 }
 
-.level-filter {
+.filter-group {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-2);
 }
 
-.level-filter label {
-  color: #64748b;
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.level-select {
-  padding: 12px 16px;
-  border: 3px solid #87ceeb;
-  border-radius: 12px;
-  font-size: 15px;
-  font-weight: 600;
-  background: linear-gradient(135deg, #ffffff 0%, #e0f2fe 100%);
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(30, 144, 255, 0.15);
-}
-
-.level-select:focus {
-  outline: none;
-  border-color: #1e90ff;
-  border-width: 4px;
-  box-shadow: 0 4px 16px rgba(30, 144, 255, 0.3);
-  transform: scale(1.02);
-}
-
-.count-info {
-  color: #64748b;
-  font-size: 14px;
+.filter-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
   font-weight: 500;
 }
 
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  color: #64748b;
-}
-
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #e2e8f0;
-  border-top: 4px solid #1e90ff;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 16px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  text-align: center;
-}
-
-.empty-icon {
-  font-size: 64px;
-  margin-bottom: 16px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  color: #64748b;
-}
-
-.empty-state h3 {
-  margin: 0 0 8px 0;
-  color: #1e293b;
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.empty-state p {
-  margin: 0;
-  color: #64748b;
-  font-size: 16px;
+.count-info {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
 }
 
 .data-table-container {
-  background: white;
-  border-radius: 12px;
-  border: 1.5px solid #e2e8f0;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
   overflow: hidden;
   width: 100%;
 }
@@ -384,112 +316,37 @@ watch(() => {
   border-collapse: collapse;
 }
 
-.data-table thead {
-  background: linear-gradient(135deg, #1e90ff 0%, #38bdf8 100%);
-}
-
 .data-table th {
-  padding: 16px;
-  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  background: rgba(37, 99, 235, 0.05);
+  font-size: var(--font-size-sm);
   font-weight: 600;
-  font-size: 14px;
-  color: white;
-  white-space: nowrap;
+  color: var(--color-text-secondary);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .data-table td {
-  padding: 16px;
-  border-top: 1px solid #e2e8f0;
-  font-size: 14px;
-  color: #1e293b;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-foreground);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .table-row {
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition: background var(--transition-fast);
 }
 
 .table-row:hover {
-  background: #f8fafc;
+  background: rgba(37, 99, 235, 0.02);
 }
 
-.exam-name-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.exam-name-text {
-  font-weight: 600;
-  color: #1e293b;
-  font-size: 14px;
-}
-
-.exam-level-badge {
-  font-weight: 600;
-  color: #1e90ff;
-  font-size: 14px;
-}
-
-.type-badge {
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  display: inline-block;
-}
-
-.type-真题 {
-  background: #e0f7fa;
-  color: #1e90ff;
-}
-
-.type-模拟 {
-  background: #fef3c7;
-  color: #d97706;
-}
-
-.type-专项 {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.question-count {
+.name-cell {
   font-weight: 500;
-  color: #1e293b;
 }
 
-.date-cell {
-  color: #64748b;
-  font-size: 13px;
-}
-
-.action-buttons {
-  display: flex;
-  gap: 8px;
-}
-
-.btn-action {
-  padding: 6px 10px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-size: 14px;
-}
-
-.btn-view {
-  background: #0ea5e9;
-  color: white;
-}
-
-.btn-view:hover {
-  background: #0284c7;
-  transform: translateY(-1px);
+.no-level {
+  color: var(--color-text-muted);
 }
 </style>
-

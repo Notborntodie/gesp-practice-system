@@ -113,7 +113,7 @@
                   <AppSelect v-model="q.difficulty" :options="difficultyOptions" />
                 </AppFormField>
                 <AppFormField label="日期">
-                  <AppInput v-model="q.question_date" type="month" />
+                  <AppMonthSelect v-model="q.question_date" full-width />
                 </AppFormField>
               </div>
 
@@ -223,6 +223,7 @@ import { BASE_URL, API_SERVER_BASE, normalizeImageUrl } from '@/config/api'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
+import AppMonthSelect from '@/components/ui/AppMonthSelect.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
 import AppTag from '@/components/ui/AppTag.vue'
 import AppFormField from '@/components/ui/AppFormField.vue'

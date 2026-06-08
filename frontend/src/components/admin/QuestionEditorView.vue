@@ -36,7 +36,7 @@
             <AppSelect v-model="form.difficulty" :options="difficultyOptions" />
           </AppFormField>
           <AppFormField label="题目日期">
-            <AppInput v-model="form.question_date" type="month" />
+            <AppMonthSelect v-model="form.question_date" full-width />
           </AppFormField>
         </div>
       </div>
@@ -197,6 +197,7 @@ import type { Ref } from 'vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
+import AppMonthSelect from '@/components/ui/AppMonthSelect.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
 import AppFormField from '@/components/ui/AppFormField.vue'
 import AppTag from '@/components/ui/AppTag.vue'

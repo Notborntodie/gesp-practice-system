@@ -18,6 +18,45 @@
           <p>请使用教师账号从计划页进入「学生提交」</p>
         </div>
         <template v-else>
+          <!-- 学生筛选（仅教师模式） -->
+          <div v-if="isStudentsMode" class="student-filter-bar">
+            <div class="student-search-wrap">
+              <Icon name="search" :size="18" class="search-icon" />
+              <input
+                v-model="studentSearchKeyword"
+                type="text"
+                class="student-search-input"
+                placeholder="搜索学生姓名..."
+                @input="onStudentSearchInput"
+              />
+              <button
+                v-if="selectedStudentId"
+                type="button"
+                class="student-filter-clear"
+                @click="clearStudentFilter"
+                title="清除筛选"
+              >×</button>
+            </div>
+            <div class="student-dropdown-wrap">
+              <select :value="selectedStudentId" class="student-select" @change="onStudentFilterChange">
+                <option :value="0">全部学生（{{ studentList.length }}人）</option>
+                <option
+                  v-for="s in filteredStudentList"
+                  :key="s.id"
+                  :value="s.id"
+                >{{ s.real_name || s.username }}{{ s.class_no ? `（${s.class_no}）` : '' }}</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 已选中的单个学生信息头 -->
+          <div v-if="isStudentsMode && selectedStudentId > 0 && selectedStudentInfo" class="selected-student-header">
+            <Icon name="user" :size="20" />
+            <span class="selected-student-name">{{ selectedStudentInfo.real_name || selectedStudentInfo.username }}</span>
+            <span v-if="selectedStudentInfo.class_no" class="selected-student-class">（{{ selectedStudentInfo.class_no }}）</span>
+            <button type="button" class="btn-clear-filter" @click="clearStudentFilter">取消筛选</button>
+          </div>
+
           <div class="tab-bar">
             <button type="button" class="tab-btn" :class="{ active: activeTab === 'oj' }" @click="activeTab = 'oj'">
               <Icon name="code" :size="18" />
@@ -63,6 +102,8 @@
                     <span class="row-title">{{ item.problem_title || `题目 #${item.problem_id}` }}</span>
                     <span v-if="mode === 'students' && (item.real_name || item.username)" class="row-student-name">{{ item.real_name || item.username }}</span>
                     <span class="row-meta">{{ formatDateTime(item.submit_time) }}</span>
+                    <span v-if="item.plan_name" class="row-source source-plan" title="来自学习计划"><Icon name="book" :size="14" /> {{ item.plan_name }}</span>
+                    <span v-else class="row-source source-self" title="自主练习"><Icon name="edit-3" :size="14" /> 自主练习</span>
                   </div>
                   <div class="row-right">
                     <span v-if="item.total_tests != null" class="pass-count">{{ item.passed_tests ?? 0 }}/{{ item.total_tests }}</span>
@@ -119,7 +160,10 @@
                     <h4 class="row-title">{{ item.exam_name || `考试 #${item.exam_id}` }}</h4>
                     <p v-if="mode === 'students' && (item.real_name || item.username)" class="row-student-name">学生：{{ item.real_name || item.username }}</p>
                     <p class="row-meta">提交时间：{{ formatDateTime(item.submit_time) }}</p>
-                    <p class="attempt-info">第 {{ item.attempt_number || 1 }} 次尝试 · {{ getLevelText(item.exam_level) }}</p>
+                    <p class="attempt-info">第 {{ item.attempt_number || 1 }} 次尝试 · {{ getLevelText(item.exam_level) }}
+                      <span v-if="item.plan_name" class="row-source source-plan"><Icon name="book" :size="14" /> {{ item.plan_name }}</span>
+                      <span v-else class="row-source source-self"><Icon name="edit-3" :size="14" /> 自主练习</span>
+                    </p>
                   </div>
                   <div class="submission-score">
                     <span class="score" :class="getScoreClass(item.score)">{{ item.score ?? 0 }}分</span>
@@ -365,11 +409,32 @@ const loading = ref(true)
 const ojSubmissions = ref<any[]>([])
 const examSubmissions = ref<any[]>([])
 
+// 学生筛选（仅教师模式）
+const studentList = ref<any[]>([])
+const selectedStudentId = ref<number>(0)
+const studentSearchKeyword = ref('')
+
 const ojPageSizeOptions = [50, 100, 200, 500, 1000]
 const ojPageSize = ref(200)
 
 const sectionTitle = computed(() => (props.mode === 'students' ? '学生提交' : '我的提交'))
 const isStudentsMode = computed(() => props.mode === 'students' && props.teacherId > 0)
+
+// 按搜索关键词过滤学生列表
+const filteredStudentList = computed(() => {
+  const kw = studentSearchKeyword.value.trim().toLowerCase()
+  if (!kw) return studentList.value
+  return studentList.value.filter((s: any) => {
+    const name = (s.real_name || s.username || '').toLowerCase()
+    return name.includes(kw)
+  })
+})
+
+// 当前选中的学生信息
+const selectedStudentInfo = computed(() => {
+  if (!selectedStudentId.value) return null
+  return studentList.value.find((s: any) => s.id === selectedStudentId.value) || null
+})
 
 // 客观题详情弹窗
 const showExamDetailModal = ref(false)
@@ -445,7 +510,11 @@ async function fetchTeacherOJSubmissions () {
   if (!tid) return
   try {
     const size = ojPageSize.value
-    const res = await fetch(`${BASE_URL}/teacher/${tid}/oj-submissions?page=1&pageSize=${size}`)
+    let url = `${BASE_URL}/teacher/${tid}/oj-submissions?page=1&pageSize=${size}`
+    if (selectedStudentId.value > 0) {
+      url += `&studentId=${selectedStudentId.value}`
+    }
+    const res = await fetch(url)
     const data = await res.json()
     if (data?.success && Array.isArray(data.data)) {
       ojSubmissions.value = data.data
@@ -470,7 +539,11 @@ async function fetchTeacherExamSubmissions () {
   const tid = props.teacherId
   if (!tid) return
   try {
-    const res = await fetch(`${BASE_URL}/teacher/${tid}/submissions-list`)
+    let url = `${BASE_URL}/teacher/${tid}/submissions-list`
+    if (selectedStudentId.value > 0) {
+      url += `?student_id=${selectedStudentId.value}`
+    }
+    const res = await fetch(url)
     const data = await res.json()
     if (Array.isArray(data)) {
       examSubmissions.value = data
@@ -482,10 +555,57 @@ async function fetchTeacherExamSubmissions () {
   }
 }
 
+async function fetchStudentList () {
+  if (!isStudentsMode.value) return
+  try {
+    const res = await fetch(`${BASE_URL}/teacher/${props.teacherId}/students`)
+    const data = await res.json()
+    if (Array.isArray(data)) {
+      // 合并同一学生多班级为一条
+      const seen = new Set<number>()
+      studentList.value = data.filter((s: any) => {
+        if (seen.has(s.id)) return false
+        seen.add(s.id)
+        return true
+      })
+    }
+  } catch {
+    studentList.value = []
+  }
+}
+
+function onStudentFilterChange (event: Event) {
+  const val = parseInt((event.target as HTMLSelectElement).value, 10) || 0
+  selectedStudentId.value = val
+  studentSearchKeyword.value = ''
+  reloadSubmissions()
+}
+
+function onStudentSearchInput () {
+  // 搜索输入实时过滤下拉选项（通过 computed filteredStudentList）
+}
+
+function clearStudentFilter () {
+  selectedStudentId.value = 0
+  studentSearchKeyword.value = ''
+  reloadSubmissions()
+}
+
+async function reloadSubmissions () {
+  loading.value = true
+  if (isStudentsMode.value) {
+    await Promise.all([fetchTeacherOJSubmissions(), fetchTeacherExamSubmissions()])
+  } else {
+    await Promise.all([fetchOJSubmissions(), fetchExamSubmissions()])
+  }
+  loading.value = false
+}
+
 async function load () {
   userId.value = getUserId()
   loading.value = true
   if (isStudentsMode.value) {
+    await fetchStudentList()
     await Promise.all([fetchTeacherOJSubmissions(), fetchTeacherExamSubmissions()])
   } else {
     await Promise.all([fetchOJSubmissions(), fetchExamSubmissions()])
@@ -811,6 +931,168 @@ watch(() => [props.mode, props.teacherId], () => {
 .submissions-body {
   padding: 24px 28px 32px;
   background: linear-gradient(180deg, #f8fafc 0%, #fff 24px);
+}
+
+/* 学生筛选栏 */
+.student-filter-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.student-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.student-search-input {
+  width: 100%;
+  padding: 10px 36px 10px 40px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  color: #1e293b;
+  background: #f8fafc;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.student-search-input:focus {
+  outline: none;
+  border-color: #1e90ff;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.15);
+}
+
+.student-search-input::placeholder {
+  color: #94a3b8;
+}
+
+.student-filter-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #e2e8f0;
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  font-size: 14px;
+  line-height: 22px;
+  text-align: center;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.student-filter-clear:hover {
+  background: #cbd5e1;
+  color: #334155;
+}
+
+.student-dropdown-wrap {
+  min-width: 180px;
+}
+
+.student-select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  color: #1e293b;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  appearance: auto;
+}
+
+.student-select:focus {
+  outline: none;
+  border-color: #1e90ff;
+  background: #fff;
+}
+
+.student-select:hover {
+  border-color: #7dd3fc;
+}
+
+/* 选中的学生信息头 */
+.selected-student-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 2px solid #93c5fd;
+  border-radius: 12px;
+  color: #1e40af;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.selected-student-name {
+  font-size: 1.05rem;
+}
+
+.selected-student-class {
+  color: #3b82f6;
+}
+
+.btn-clear-filter {
+  margin-left: auto;
+  padding: 4px 12px;
+  background: transparent;
+  border: 1.5px solid #93c5fd;
+  border-radius: 8px;
+  color: #2563eb;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-clear-filter:hover {
+  background: #bfdbfe;
+  border-color: #3b82f6;
+}
+
+/* 提交来源标签 */
+.row-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  margin-top: 2px;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.source-plan {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.source-self {
+  background: #f0f9ff;
+  color: #0369a1;
+  border: 1px solid #7dd3fc;
 }
 
 .tab-bar {

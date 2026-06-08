@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" role="img" aria-label="Fire growth pet stage 2">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="65%">
+      <stop offset="0" stop-color="#fff5bd"/>
+      <stop offset="1" stop-color="#ffd7ca"/>
+    </radialGradient>
+    <linearGradient id="body" x1="59" y1="25" x2="168" y2="190">
+      <stop offset="0" stop-color="#ffd84f"/>
+      <stop offset=".45" stop-color="#ff7628"/>
+      <stop offset="1" stop-color="#c92d2b"/>
+    </linearGradient>
+  </defs>
+  <circle cx="110" cy="110" r="98" fill="url(#bg)"/>
+  <path d="M107 21c11 30-16 45 5 69 15-14 18-32 16-49 36 35 57 62 57 103 0 35-29 60-75 60s-75-25-75-60c0-36 22-56 44-78 15-15 25-28 28-45Z" fill="url(#body)"/>
+  <path d="M110 92c17 21-2 32 17 49 9 8 15 19 15 31 0 20-14 32-32 32s-32-12-32-32c0-16 9-27 22-39 8-8 10-22 10-41Z" fill="#fff1a8" opacity=".9"/>
+  <path d="M48 130c-20 10-28 30-21 51 16-12 29-18 47-17" fill="#ff8d32"/>
+  <path d="M172 130c20 10 28 30 21 51-16-12-29-18-47-17" fill="#ff8d32"/>
+  <circle cx="92" cy="139" r="7" fill="#40140d"/>
+  <circle cx="128" cy="139" r="7" fill="#40140d"/>
+  <path d="M99 162c8 8 18 8 26 0" fill="none" stroke="#40140d" stroke-width="6" stroke-linecap="round"/>
+</svg>

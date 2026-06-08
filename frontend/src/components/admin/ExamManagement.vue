@@ -9,9 +9,14 @@
   >
     <!-- Header Actions -->
     <template #header-actions>
-      <AppButton variant="primary" @click="openCreateExam">
+      <AppButton variant="primary" @click="openCreateExam" title="从题库选题组卷">
         <Plus :size="16" />
         创建练习
+      </AppButton>
+      <AppButton variant="secondary" @click="openExamBatchUpload" title="批量上传题目并自动创建练习">
+        <Upload :size="16" />
+        上传练习
+        <AppTag type="success" size="sm" class="new-badge">新</AppTag>
       </AppButton>
     </template>
 
@@ -188,7 +193,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, inject } from 'vue'
+import { ref, computed, onMounted, onActivated, watch, inject } from 'vue'
 import axios from 'axios'
 import { BASE_URL } from '@/config/api'
 
@@ -202,7 +207,7 @@ import AppDialog from '@/components/ui/AppDialog.vue'
 import AppEmptyState from '@/components/ui/AppEmptyState.vue'
 
 // Lucide Icons
-import { Download, Pencil, Trash2, Plus } from 'lucide-vue-next'
+import { Download, Pencil, Trash2, Plus, Upload } from 'lucide-vue-next'
 
 // Dialog Components
 import ExportDialog from './Dialog/ExportDialog.vue'
@@ -214,6 +219,7 @@ import docxExportService from '@/services/docxExportService'
 
 // Inject
 const openExamEditor = inject<(examId?: number) => void>('openExamEditor')
+const openExamBatchUpload = inject<() => void>('openExamBatchUpload')
 
 function openCreateExam() {
   openExamEditor?.()
@@ -423,6 +429,11 @@ onMounted(async () => {
   questionTypeStore.fetchQuestionTypes()
   await fetchExams()
 })
+
+// KeepAlive 重新激活时强制刷新列表（从编辑器/上传页返回后）
+onActivated(async () => {
+  await fetchExams(true)
+})
 </script>
 
 <style scoped>
@@ -576,5 +587,12 @@ onMounted(async () => {
   .info-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+.new-badge {
+  margin-left: var(--space-1);
+  font-size: 10px;
+  line-height: 1;
+  padding: 1px 4px;
 }
 </style>
